@@ -1,0 +1,97 @@
+၁။ apiUrl ယူရန်
+==============
+1. Google Apps Script ကိုဖွင့်ပါ။
+2. Family Vault v2 ရဲ့ Code.gs ထည့်ထားသော project ကိုဖွင့်ပါ။
+3. ညာဘက်အပေါ် Deploy → New deployment နှိပ်ပါ။
+4. ⚙️ ကိုနှိပ်ပြီး Web app ရွေးပါ။
+5. အောက်ပါအတိုင်းထားပါ။
+   - Description: Family Vault v2
+   - Execute as: Me
+   - Who has access: Anyone
+6. Deploy နှိပ်ပါ။ Google permission တောင်းလျှင် authorize လုပ်ပါ။
+7. Web app URL → Copy ကိုနှိပ်ပါ။ /exec နဲ့ဆုံးသော URL ဖြစ်ရပါမယ်။
+apiUrl: 'https://script.google.com/macros/s/သင့်_DEPLOYMENT_ID/exec',
+
+Apps Script ရဲ့ Project Settings → Script Properties ထဲမှာလည်း ဒီနှစ်ခုထည့်ထားပါ—
+Property	ထည့်ရန်
+FIREBASE_API_KEY	သင့် config ထဲက apiKey
+FAMILY_EMAILS	သင့် Gmail နဲ့ မိသားစုဝင် Gmail များ၊ comma ခြားထားပါ
+
+Anyone ဆိုတာ endpoint ကိုခေါ်နိုင်ခြင်းပါ။ Vault data ကိုတော့ backend က login token နဲ့ family allowlist စစ်ပြီးမှ ခွင့်ပြုပါတယ်။
+
+၂။ OAuth consent ပြင်ရန်
+======================
+ဒီ Google Auth Platform စာမျက်နှာ ကိုဖွင့်ပါ။ အပေါ်က project သည် fvm-26 ဖြစ်ကြောင်းစစ်ပါ။
+Get started ပေါ်လျှင် နှိပ်ပြီး—
+1. App name: Family Vault
+2. User support email: သင့် Gmail ကိုရွေးပါ။
+3. Audience: External ရွေးပါ။
+4. Contact information: သင့် Gmail ထည့်ပါ။
+5. Terms ကိုလက်ခံပြီး Create နှိပ်ပါ။
+
+Setup ရှိပြီးသားဖြစ်လျှင် ဘယ်ဘက် Branding မှ app name၊ support email၊ developer contact email ကိုပြင်ပြီး Save လုပ်ပါ။
+
+၃။ မိသားစုဝင် Test users ထည့်ရန်
+============================
+1. ဘယ်ဘက် Audience ကိုနှိပ်ပါ။
+2. Publishing status ကို Testing ထားပါ။
+3. Test users → Add users နှိပ်ပါ။
+4. သင့် Gmail ကိုပါ ထည့်ပါ။ မိသားစုဝင် Gmail များလည်းထည့်ပါ။
+5. Save နှိပ်ပါ။
+ဒီ Gmail များကို Apps Script ရဲ့ FAMILY_EMAILS ထဲမှာလည်း ထည့်ရပါမယ်။ Test users နဲ့ family allowlist က သီးခြားစာရင်းနှစ်ခုဖြစ်ပါတယ်။
+
+၄။ Drive permission ထည့်ရန်
+==========================
+ဘယ်ဘက် Data Access → Add or remove scopes ကိုဖွင့်ပြီး ဒီ scope ကိုရွေး/ထည့်ပါ—
+https://www.googleapis.com/auth/drive.file
+
+Update → Save လုပ်ပါ။ ဒီ permission က app ဖန်တီးထားသော Drive files တွေကို အသုံးပြုဖို့ဖြစ်ပါတယ်။
+
+Add domain
+==========
+1. Firebase Console → fvm-26 project ကိုဖွင့်ပါ။
+2. Authentication → Settings → Authorized domains သို့သွားပါ။
+3. Add domain နှိပ်ပြီး app ဖွင့်ထားသော browser address ရဲ့ hostname ကိုသာ ထည့်ပါ။
+Browser address	ထည့်ရမည့် domain
+https://fvm-26.web.app	fvm-26.web.app
+http://localhost:8080	localhost
+http://127.0.0.1:5500	127.0.0.1
+https://fvm.mmusa.org	vault.yourdomain.com
+
+
+၁။ appsscript.json ကိုစစ်ပါ
+=========================
+Apps Script → ⚙️ Project Settings → Show “appsscript.json” manifest file in editor ကိုအမှန်ခြစ်ပါ။
+Editor ကိုပြန်သွားပြီး appsscript.json ကိုဖွင့်ပါ။ v2 project အတွက် ဒီအတိုင်းထားပါ—
+{
+  "timeZone": "America/New_York",
+  "dependencies": {},
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/script.send_mail",
+    "https://www.googleapis.com/auth/script.scriptapp"
+  ]
+}
+
+၂။ Permission တောင်းရန် function ထည့်ပါ
+====================================
+Code.gs အောက်ဆုံးမှာ ဒီ function ထပ်ထည့်ပြီး Save လုပ်ပါ—
+function authorizeBackend() {
+  const response = UrlFetchApp.fetch(
+    'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'
+  );
+  console.log('Connection status: ' + response.getResponseCode());
+}
+
+အပေါ်က function selector မှ authorizeBackend → Run နှိပ်ပါ။
+Review permissions ပေါ်လျှင် script ကို deploy လုပ်ထားသော owner Google account ကိုရွေးပြီး၊ external service ချိတ်ဆက်ခွင့်ကို Allow လုပ်ပါ။ Scope ထည့်ထားခြင်းနဲ့ owner authorization ပေးခြင်း နှစ်ခုလုံးလိုပါတယ်။
+
+၃။ Deployment ကို update လုပ်ပါ
+============================
+Deploy → Manage deployments → ✏️ Edit
+- Version: New version
+- Execute as: Me
+- Who has access: Anyone
+ပြီးရင် Deploy နှိပ်ပါ။ Existing deployment ကို update လုပ်တာဖြစ်လို့ apiUrl အဟောင်းကို ဆက်သုံးနိုင်ပါတယ်။

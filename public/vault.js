@@ -1,0 +1,32 @@
+const enc = new TextEncoder();
+export const to64 = b => btoa(Array.from(new Uint8Array(b), c => String.fromCharCode(c)).join(''));
+export const from64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+export async function deriveKey(passphrase, salt) {
+  const material = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt:from64(salt),iterations:600000,hash:'SHA-256'}, material, {name:'AES-GCM',length:256}, false, ['encrypt','decrypt']);
+}
+export async function seal(value, key) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:enc.encode('family-vault:v1')}, key, enc.encode(JSON.stringify(value)));
+  return {v:1,iv:to64(iv),ciphertext:to64(ciphertext)};
+}
+export async function unseal(box,key) {
+  if(box.v!==1) throw new Error('Unsupported encryption version');
+  return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:from64(box.iv),additionalData:enc.encode('family-vault:v1')},key,from64(box.ciphertext))));
+}
+export function advanceDate(date,frequency) {
+  if(!date || !['monthly','quarterly','yearly'].includes(frequency)) return date;
+  const [y,m,d]=date.split('-').map(Number);
+  const target = new Date(Date.UTC(y+(frequency==='yearly'?1:0),m-1+(frequency==='monthly'?1:frequency==='quarterly'?3:0),1));
+  const last=new Date(Date.UTC(target.getUTCFullYear(),target.getUTCMonth()+1,0)).getUTCDate();
+  target.setUTCDate(Math.min(d,last));
+  return target.toISOString().slice(0,10);
+}
+export function events(records) {
+  return records.filter(r=>r.status==='active'&&!r.isExample).flatMap(r=>[['due',r.dueDate],['renewal',r.renewalDate],['expiry',r.expiryDate]].filter(([,date])=>date).map(([kind,date])=>({id:r.id,name:r.name,kind,date}))).sort((a,b)=>a.date.localeCompare(b.date));
+}
+export async function sealBytes(bytes,key){const iv=crypto.getRandomValues(new Uint8Array(12));return {v:1,iv:to64(iv),ciphertext:to64(await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:enc.encode('family-vault:document:v1')},key,bytes))};}
+export async function unsealBytes(box,key){if(box.v!==1)throw Error('Unsupported document format');return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:from64(box.iv),additionalData:enc.encode('family-vault:document:v1')},key,from64(box.ciphertext)));}
+export function initialData(){return {version:2,records:[],payments:[],documents:[],groups:['မိသားစု','ငွေရေးကြေးရေး','အိမ်','ကျန်းမာရေး','အာမခံ','စာရင်းသွင်းဝန်ဆောင်မှု'],settings:{emailReminders:false}};}
+export function normalize(value){if(!value||!Array.isArray(value.records)||!Array.isArray(value.payments)||value.records.length>2000||value.payments.length>10000)throw Error('Invalid vault data');value.documents=Array.isArray(value.documents)?value.documents:[];value.groups=Array.isArray(value.groups)?value.groups.filter(g=>typeof g==='string').slice(0,100):[];value.settings=value.settings||{emailReminders:false};for(const r of value.records){if(typeof r.id!=='string'||typeof r.name!=='string')throw Error('Invalid record');}for(const payment of value.payments){if(typeof payment.id!=='string'||typeof payment.recordId!=='string'||typeof payment.date!=='string')throw Error('Invalid payment');}for(const d of value.documents){if(typeof d.id!=='string'||typeof d.fileId!=='string'||typeof d.name!=='string')throw Error('Invalid document');}return value;}
+export function allEvents(value){return [...events(value.records),...value.documents.filter(d=>d.status==='active'&&d.expiryDate).map(d=>({id:d.id,name:d.name,date:d.expiryDate,kind:'document'}))].sort((a,b)=>a.date.localeCompare(b.date));}

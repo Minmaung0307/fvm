@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="my">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#4f46e5" />
+    <title>Family Vault</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/">◈ Family Vault</a
+      ><span class="privacy-badge">● Your Gmail · Your Drive</span
+      ><button id="help" type="button">?</button
+      ><button id="lock" hidden>Lock</button
+      ><button id="logout" hidden>Sign out</button>
+    </header>
+    <main>
+      <section id="gate" class="panel">
+        <div class="eyebrow">PRIVATE • ENCRYPTED • FAMILY</div>
+        <h1>Save your records!</h1>
+        <p>
+          Save accounts, bills, and docs to your Drive.
+        </p>
+        <button id="login">Sign in with Google</button>
+        <form id="unlockForm" hidden>
+          <label
+            >ကိုယ်ပိုင် Vault passphrase<input
+              id="passphrase"
+              type="password"
+              minlength="16"
+              required
+              autocomplete="off" /></label
+          ><label id="confirmLabel" hidden
+            >Passphrase ပြန်ရိုက်ပါ<input
+              id="confirmPass"
+              type="password"
+              autocomplete="off"
+          /></label>
+          <p id="setupHint"></p>
+          <button>Vault ဖွင့်ရန်</button>
+        </form>
+      </section>
+      <section id="workspace" hidden>
+        <div class="heading">
+          <div>
+            <div class="eyebrow">A LITTLE LESS TO REMEMBER</div>
+            <h1>All Records</h1>
+            <p id="identity"></p>
+          </div>
+          <div class="quick-actions">
+            <button id="add">＋ Account</button
+            ><button id="addBill" class="primary">＋ Bill</button>
+          </div>
+        </div>
+        <div id="stats" class="stats"></div>
+        <section class="welcome-banner">
+          <div>
+            <strong>ကိုယ့် Vault ကို စိတ်ကြိုက်စီမံပါ။</strong>
+            <p>
+              Accounts၊ bills နဲ့ docs ကို group ခွဲပြီး သိမ်းနိုင်ပါတယ်။
+              ဘယ်နေရာကစရမလဲ မသိသေးရင် နမူနာတွေကို ကြည့်ပါ။
+            </p>
+          </div>
+          <button id="addSamples">နမူနာ ၃ ခု ထည့်ရန်</button>
+        </section>
+        <nav aria-label="Vault navigation">
+          <button data-view="records" class="selected">
+            <span aria-hidden="true">▦</span
+            ><span>Accounts & bills</span></button
+          ><button data-view="documents">
+            <span aria-hidden="true">▤</span><span>Documents</span></button
+          ><button data-view="calendar">
+            <span aria-hidden="true">▦</span><span>Calendar</span></button
+          ><button data-view="history">
+            <span aria-hidden="true">↗</span><span>Payments</span></button
+          ><button data-view="settings">
+            <span aria-hidden="true">⚙</span><span>Settings</span>
+          </button>
+        </nav>
+        <div class="toolbar">
+          <div class="search-row">
+            <input
+              id="search"
+              placeholder="အမည်၊ provider, memo ရှာရန်"
+              aria-label="Search"
+            /><button
+              id="filtersToggle"
+              type="button"
+              aria-expanded="false"
+              aria-controls="filterPanel"
+            >
+              Filters</button
+            ><button id="refresh">↻ Refresh</button>
+          </div>
+          <div id="filterPanel" class="filter-panel">
+            <select id="recordType" aria-label="Record type">
+              <option value="all">Accounts & bills</option>
+              <option value="account">Accounts only</option>
+              <option value="bill">Bills only</option></select
+            ><select id="groupFilter" aria-label="Group">
+              <option value="all">All groups</option></select
+            ><select id="favoriteFilter" aria-label="Favorites">
+              <option value="all">All items</option>
+              <option value="favorites">Favorites only</option></select
+            ><select id="status">
+              <option value="active">Active</option>
+              <option value="closed">Closed</option>
+              <option value="archived">Archived</option>
+              <option value="all">All records</option></select
+            ><select id="category">
+              <option value="all">All categories</option>
+              <option>Account</option>
+              <option>Phone</option>
+              <option>Internet</option>
+              <option>Mortgage</option>
+              <option>Utilities</option>
+              <option>Insurance</option>
+              <option>Subscription</option>
+              <option>Other</option></select
+            ><select id="sortOrder" aria-label="Sort order">
+              <option value="name">အမည်အလိုက်</option>
+              <option value="due">Due date အလိုက်</option>
+              <option value="recent">နောက်ဆုံးပြင်ထားမှု</option></select
+            ><button id="resetFilters" type="button">Reset filters</button>
+          </div>
+        </div>
+        <div class="collection-heading">
+          <div>
+            <h2 id="collectionTitle">Accounts & bills</h2>
+            <p id="resultCount" class="muted"></p>
+          </div>
+          <span class="encrypted-label">◈ Encrypted storage</span>
+        </div>
+        <div id="content"></div>
+        <section id="settingsPanel" class="panel" hidden>
+          <h2>Groups & settings</h2>
+          <div class="settings-organizers">
+            <section>
+              <div class="heading">
+                <h3>Groups</h3>
+                <button id="newGroupButton" type="button">＋ Group</button>
+              </div>
+              <p class="muted">
+                ကိုယ်တိုင်စုစည်းရာ။ ဥပမာ အိမ်၊ အလုပ်၊ မိသားစု။
+              </p>
+              <div id="groupsList"></div>
+            </section>
+            <section>
+              <div class="heading">
+                <h3>Categories</h3>
+                <button id="newCategoryButton" type="button">
+                  ＋ Category
+                </button>
+              </div>
+              <p class="muted">
+                Record အမျိုးအစား။ ဥပမာ Internet, Banking, Education
+              </p>
+              <div id="categoriesList"></div>
+            </section>
+          </div>
+          <label class="check"
+            ><input id="emailOptIn" type="checkbox" /> နေ့စဉ် generic email
+            reminder လက်ခံမည် (ရက်စွဲများကို reminder server
+            တွင်သိမ်းမည်)</label
+          >
+          <p id="driveInfo"></p>
+          <button id="changePass">Passphrase ပြောင်းရန်</button
+          ><label class="import"
+            >Legacy JSON import<input
+              id="legacyImport"
+              type="file"
+              accept="application/json"
+          /></label>
+          <p class="muted">
+            Docs ပါသော backup restore ကို မူလ Google account ထဲမှာသာလုပ်ပါ။
+            Document binary သည် Drive ထဲတွင် သီးခြားသိမ်းထားပါသည်။
+          </p>
+        </section>
+        <div class="footer-actions">
+          <button id="notifications">Browser alerts ဖွင့်ရန်</button
+          ><button id="addDocument">＋ Document upload</button
+          ><button id="backup">Encrypted backup</button
+          ><label class="import"
+            >Backup restore<input
+              id="restore"
+              type="file"
+              accept="application/json"
+          /></label>
+        </div>
+        <p class="muted">
+          Vault သည် ၅ မိနစ် idle ဖြစ်လျှင် lock လုပ်မည်။ Background reminders
+          အတွက် setup လမ်းညွှန်ကို ကြည့်ပါ။
+        </p>
+      </section>
+      <p id="message" role="status" aria-live="polite"></p>
+      <p id="busyIndicator" hidden role="status">လုံခြုံစွာ ချိတ်ဆက်နေပါသည်…</p>
+    </main>
+    <dialog id="editor">
+      <form id="recordForm">
+        <div class="heading">
+          <h2 id="editorTitle">Record</h2>
+          <button type="button" id="cancel">✕</button>
+        </div>
+        <input name="id" type="hidden" />
+        <p class="muted form-intro">
+          အဓိကအချက်အလက်ကိုအရင်ဖြည့်ပါ။ မလိုသော optional fields များကို
+          အလွတ်ထားနိုင်သည်။
+        </p>
+        <h3 class="section-title">အဓိကအချက်အလက်</h3>
+        <div id="fields" class="form-grid"></div>
+        <details id="credentialsSection" open>
+          <summary>Login & account details <span>Optional</span></summary>
+          <div id="credentialFields" class="form-grid"></div>
+        </details>
+        <section id="billingSection">
+          <h3 class="section-title">Bill & payment</h3>
+          <div id="billingFields" class="form-grid"></div>
+        </section>
+        <details id="datesSection">
+          <summary>သက်တမ်းနှင့် မှတ်ချက် <span>Optional</span></summary>
+          <div id="dateFields" class="form-grid"></div>
+          <h3>Provider history</h3>
+          <p>
+            ပြောင်းလဲခဲ့သည့် provider များ၊ ရက်စွဲနဲ့ မှတ်ချက်ကို တစ်ကြောင်းစီ
+            ရေးပါ။ ဥပမာ Comcast → Verizon — 2026-09-01
+          </p>
+          <textarea name="providerHistory" rows="3"></textarea>
+        </details>
+        <div class="dialog-actions">
+          <button type="button" id="delete" class="danger">
+            Delete permanently</button
+          ><button>Save encrypted</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="backupPrompt">
+      <form id="backupPassForm">
+        <h2>Backup passphrase</h2>
+        <label
+          >Passphrase<input
+            id="backupPass"
+            type="password"
+            autocomplete="off"
+            required
+        /></label>
+        <div class="dialog-actions">
+          <button type="button" id="backupCancel">Cancel</button
+          ><button>Restore</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="docEditor">
+      <form id="docForm">
+        <div class="heading">
+          <h2>Document</h2>
+          <button id="docCancel" type="button">✕</button>
+        </div>
+        <input name="id" type="hidden" /><label
+          >အမည်<input name="name" required maxlength="150" /></label
+        ><label
+          >File (PDF, image, DOCX, XLSX, text — max 3 MiB)<input
+            name="file"
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.txt,.csv"
+        /></label>
+        <div class="form-grid">
+          <label>Group<select name="group"></select></label
+          ><label
+            >Status<select name="status">
+              <option>active</option>
+              <option>archived</option>
+              <option>closed</option>
+            </select></label
+          ><label>Expiry date<input name="expiryDate" type="date" /></label
+          ><label
+            >Tags<input name="tags" placeholder="passport, insurance" /></label
+          ><label>ဆက်စပ် account / bill<select name="recordId"></select></label
+          ><label>Memo<input name="memo" /></label>
+        </div>
+        <button>Save encrypted document</button>
+      </form>
+    </dialog>
+    <dialog id="passEditor">
+      <form id="passForm">
+        <h2>Passphrase အသစ်</h2>
+        <label
+          >Passphrase<input
+            name="pass"
+            type="password"
+            minlength="16"
+            required
+            autocomplete="off" /></label
+        ><label
+          >ပြန်ရိုက်ပါ<input
+            name="confirm"
+            type="password"
+            minlength="16"
+            required
+            autocomplete="off"
+        /></label>
+        <p>
+          ရှိပြီးသား docs အတွက် encryption key ကိုထိန်းထားပြီး key ကို
+          passphrase အသစ်ဖြင့် wrap လုပ်ပေးမည်။ အရင် backup တွေမှာ မူလ
+          passphrase လိုပါသေးသည်။
+        </p>
+        <button>Change passphrase</button
+        ><button type="button" id="passCancel">Cancel</button>
+      </form>
+    </dialog>
+    <dialog id="organizerDialog">
+      <form id="organizerForm">
+        <div class="heading">
+          <h2 id="organizerTitle">Group အသစ်</h2>
+          <button id="organizerCancel" type="button">✕</button>
+        </div>
+        <label
+          >အမည်<input
+            id="organizerName"
+            required
+            maxlength="60"
+            autocomplete="off"
+        /></label>
+        <p id="organizerHint" class="muted"></p>
+        <p id="organizerError" role="alert"></p>
+        <button class="primary">Save</button>
+      </form>
+    </dialog>
+    <dialog id="paymentDialog">
+      <form id="paymentForm">
+        <div class="heading">
+          <h2>Payment မှတ်တမ်း</h2>
+          <button id="paymentCancel" type="button">✕</button>
+        </div>
+        <p id="paymentName"></p>
+        <label>Paid date<input name="date" type="date" required /></label
+        ><label
+          >ပေးခဲ့သောပမာဏ<input
+            name="amount"
+            type="number"
+            min="0"
+            step="0.01"
+            required /></label
+        ><label>Memo / confirmation number<input name="memo" /></label>
+        <p class="muted">
+          ငွေလွှဲခြင်းမဟုတ်ပါ။ မှတ်တမ်းသိမ်းပြီး due date ကို cycle
+          တစ်ခုရွှေ့မည်။
+        </p>
+        <button class="primary">Save payment</button>
+      </form>
+    </dialog>
+    <dialog id="helpDialog">
+      <div class="heading">
+        <h2>Family Vault လမ်းညွှန်</h2>
+        <button id="helpClose" type="button" aria-label="Close guide">✕</button>
+      </div>
+      <div id="helpContent"></div>
+      <button id="guideSamples" type="button">နမူနာ ၃ ခု ထည့်ရန်</button>
+    </dialog>
+    <div id="fieldTooltip" class="field-tooltip" role="tooltip" hidden></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,23 @@
+/* Add ONLY this helper to your OLD sheet-bound Apps Script project.
+ * Run manually in the editor as the owner. Never expose it via doGet/doPost.
+ * It creates a private, potentially sensitive JSON export in your own Drive.
+ */
+function exportLegacyForMigration() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) throw new Error('Run in the original spreadsheet-bound script');
+  function records(name) {
+    const sheet = ss.getSheetByName(name);
+    if (!sheet || sheet.getLastRow() < 2) return [];
+    const values = sheet.getDataRange().getValues(), headers = values.shift();
+    return values.filter(row => row.some(cell => cell !== '')).map(row => {
+      const record = {};
+      headers.forEach((header,i) => {
+        const value = row[i];
+        record[header] = value instanceof Date ? Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd') : value;
+      });
+      return record;
+    });
+  }
+  DriveApp.createFile('FamilyVault-Legacy-private.json', JSON.stringify({accounts:records('Accounts'),bills:records('Bills'),payments:records('Payments')},null,2), MimeType.PLAIN_TEXT);
+  // Find this filename in your Google Drive, download it, then import through v2 settings.
+}

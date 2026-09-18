@@ -1,0 +1,708 @@
+/**
+ * ============================================================================
+ * Family Vault - Google Apps Script Backend
+ * ============================================================================
+ * This script connects Google Sheets as a secure, serverless database for your
+ * Family Vault web application.
+ *
+ * Sheets managed:
+ * 1. Accounts   - User logins, passwords (encrypted), provider info, status
+ * 2. Bills      - Monthly/yearly recurring bills, due dates, amounts, autopay
+ * 3. Payments   - Payment logs and history
+ * 4. Settings   - Family settings, authorized emails, encryption salt hint
+ * 5. Logs       - Audit logs of changes
+ * ============================================================================
+ */
+
+// Configuration Defaults
+const SHEET_NAMES = {
+  ACCOUNTS: 'Accounts',
+  BILLS: 'Bills',
+  PAYMENTS: 'Payments',
+  SETTINGS: 'Settings',
+  LOGS: 'Logs'
+};
+
+/**
+ * Handle HTTP GET Requests
+ */
+function doGet(e) {
+  try {
+    const params = e ? e.parameter : {};
+    const action = params.action || 'getVaultData';
+
+    if (action === 'ping') {
+      return jsonResponse({ status: 'ok', timestamp: new Date().toISOString() });
+    }
+
+    if (action === 'init') {
+      initializeSheets();
+      return jsonResponse({ success: true, message: 'Database sheets initialized successfully.' });
+    }
+
+    if (action === 'getVaultData') {
+      ensureInitialized();
+      const userEmail = params.userEmail || '';
+      
+      // Optional email check against Settings sheet
+      if (!isEmailAuthorized(userEmail)) {
+        return jsonResponse({
+          success: false,
+          error: 'Unauthorized. This email is not in the Family Vault allowlist: ' + userEmail
+        }, 403);
+      }
+
+      const data = {
+        accounts: getSheetDataAsObjects(SHEET_NAMES.ACCOUNTS),
+        bills: getSheetDataAsObjects(SHEET_NAMES.BILLS),
+        payments: getSheetDataAsObjects(SHEET_NAMES.PAYMENTS),
+        settings: getSettingsMap(),
+        serverTime: new Date().toISOString()
+      };
+
+      return jsonResponse({ success: true, data: data });
+    }
+
+    if (action === 'getLogs') {
+      ensureInitialized();
+      const logs = getSheetDataAsObjects(SHEET_NAMES.LOGS);
+      return jsonResponse({ success: true, logs: logs.slice(-100).reverse() });
+    }
+
+    return jsonResponse({ success: false, error: 'Unknown action: ' + action }, 400);
+
+  } catch (err) {
+    return jsonResponse({ success: false, error: err.toString() }, 500);
+  }
+}
+
+/**
+ * Handle HTTP POST Requests
+ */
+function doPost(e) {
+  try {
+    ensureInitialized();
+
+    let payload = {};
+    if (e && e.postData && e.postData.contents) {
+      try {
+        payload = JSON.parse(e.postData.contents);
+      } catch (ex) {
+        payload = e.parameter || {};
+      }
+    } else if (e && e.parameter) {
+      payload = e.parameter;
+    }
+
+    const action = payload.action;
+    const userEmail = payload.userEmail || 'unknown';
+
+    // Verify authorized user
+    if (!isEmailAuthorized(userEmail)) {
+      return jsonResponse({
+        success: false,
+        error: 'Unauthorized: User ' + userEmail + ' is not permitted.'
+      }, 403);
+    }
+
+    let result = null;
+
+    switch (action) {
+      case 'saveAccount':
+        result = saveAccount(payload.account, userEmail);
+        break;
+
+      case 'deleteAccount':
+        result = deleteAccount(payload.id, userEmail);
+        break;
+
+      case 'archiveAccount':
+        result = setAccountStatus(payload.id, payload.status || 'archived', userEmail);
+        break;
+
+      case 'saveBill':
+        result = saveBill(payload.bill, userEmail);
+        break;
+
+      case 'deleteBill':
+        result = deleteBill(payload.id, userEmail);
+        break;
+
+      case 'recordPayment':
+        result = recordPayment(payload.payment, userEmail);
+        break;
+
+      case 'deletePayment':
+        result = deletePayment(payload.id, userEmail);
+        break;
+
+      case 'updateSettings':
+        result = updateSettings(payload.settings, userEmail);
+        break;
+
+      case 'addAuditLog':
+        logAction(userEmail, payload.logAction || 'CUSTOM', payload.targetId || '', payload.details || '');
+        result = { logged: true };
+        break;
+
+      default:
+        return jsonResponse({ success: false, error: 'Unknown POST action: ' + action }, 400);
+    }
+
+    return jsonResponse({ success: true, result: result });
+
+  } catch (err) {
+    return jsonResponse({ success: false, error: err.toString() }, 500);
+  }
+}
+
+/**
+ * Account CRUD Operations
+ */
+function saveAccount(acc, userEmail) {
+  if (!acc) throw new Error('No account data provided.');
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.ACCOUNTS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  const now = new Date().toISOString();
+  const isNew = !acc.id;
+  const id = acc.id || Utilities.getUuid();
+
+  const rowObj = {
+    id: id,
+    category: acc.category || 'Other',
+    subcategory: acc.subcategory || '',
+    name: acc.name || 'Untitled Account',
+    provider: acc.provider || '',
+    website: acc.website || '',
+    currentPlan: acc.currentPlan || '',
+    encryptedUsername: acc.encryptedUsername || '',
+    encryptedPassword: acc.encryptedPassword || '',
+    encryptedPin: acc.encryptedPin || '',
+    encryptedAccountNumber: acc.encryptedAccountNumber || '',
+    encryptedNotes: acc.encryptedNotes || '',
+    status: acc.status || 'active', // active, closed, archived
+    previousProviders: typeof acc.previousProviders === 'string' ? acc.previousProviders : JSON.stringify(acc.previousProviders || []),
+    tags: Array.isArray(acc.tags) ? acc.tags.join(',') : (acc.tags || ''),
+    createdAt: acc.createdAt || now,
+    updatedAt: now,
+    lastModifiedBy: userEmail
+  };
+
+  let rowIndex = -1;
+  if (!isNew) {
+    const idColIdx = headers.indexOf('id');
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][idColIdx]) === String(id)) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+  }
+
+  const rowValues = headers.map(h => rowObj[h] !== undefined ? rowObj[h] : '');
+
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+    logAction(userEmail, 'UPDATE_ACCOUNT', id, 'Updated account: ' + rowObj.name);
+  } else {
+    sheet.appendRow(rowValues);
+    logAction(userEmail, 'CREATE_ACCOUNT', id, 'Created account: ' + rowObj.name);
+  }
+
+  return rowObj;
+}
+
+function deleteAccount(id, userEmail) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.ACCOUNTS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idColIdx = headers.indexOf('id');
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idColIdx]) === String(id)) {
+      sheet.deleteRow(i + 1);
+      logAction(userEmail, 'DELETE_ACCOUNT', id, 'Deleted account');
+      return { deleted: true, id: id };
+    }
+  }
+  throw new Error('Account ID not found: ' + id);
+}
+
+function setAccountStatus(id, newStatus, userEmail) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.ACCOUNTS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idColIdx = headers.indexOf('id');
+  const statusColIdx = headers.indexOf('status');
+  const updatedColIdx = headers.indexOf('updatedAt');
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idColIdx]) === String(id)) {
+      sheet.getRange(i + 1, statusColIdx + 1).setValue(newStatus);
+      if (updatedColIdx >= 0) {
+        sheet.getRange(i + 1, updatedColIdx + 1).setValue(new Date().toISOString());
+      }
+      logAction(userEmail, 'CHANGE_STATUS', id, 'Changed status to ' + newStatus);
+      return { success: true, id: id, status: newStatus };
+    }
+  }
+  throw new Error('Account ID not found: ' + id);
+}
+
+/**
+ * Bill CRUD Operations
+ */
+function saveBill(bill, userEmail) {
+  if (!bill) throw new Error('No bill data provided.');
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.BILLS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  const now = new Date().toISOString();
+  const isNew = !bill.id;
+  const id = bill.id || Utilities.getUuid();
+
+  const rowObj = {
+    id: id,
+    accountId: bill.accountId || '',
+    billName: bill.billName || 'Untitled Bill',
+    category: bill.category || 'Utilities', // Phone, Internet, Mortgage, Utilities, Insurance, Subscriptions, Other
+    frequency: bill.frequency || 'monthly', // monthly, yearly, quarterly, one-time
+    amount: Number(bill.amount) || 0,
+    currency: bill.currency || 'USD',
+    nextDueDate: bill.nextDueDate || '',
+    autoPay: bill.autoPay === true || bill.autoPay === 'true',
+    paymentMethod: bill.paymentMethod || '',
+    reminderDays: Number(bill.reminderDays) || 7,
+    status: bill.status || 'active', // active, paused, cancelled
+    website: bill.website || '',
+    encryptedDetails: bill.encryptedDetails || '',
+    notes: bill.notes || '',
+    lastPaidDate: bill.lastPaidDate || '',
+    lastPaidAmount: Number(bill.lastPaidAmount) || 0,
+    createdAt: bill.createdAt || now,
+    updatedAt: now,
+    lastModifiedBy: userEmail
+  };
+
+  let rowIndex = -1;
+  if (!isNew) {
+    const idColIdx = headers.indexOf('id');
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][idColIdx]) === String(id)) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+  }
+
+  const rowValues = headers.map(h => rowObj[h] !== undefined ? rowObj[h] : '');
+
+  if (rowIndex > 0) {
+    sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+    logAction(userEmail, 'UPDATE_BILL', id, 'Updated bill: ' + rowObj.billName);
+  } else {
+    sheet.appendRow(rowValues);
+    logAction(userEmail, 'CREATE_BILL', id, 'Created bill: ' + rowObj.billName);
+  }
+
+  return rowObj;
+}
+
+function deleteBill(id, userEmail) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.BILLS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idColIdx = headers.indexOf('id');
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idColIdx]) === String(id)) {
+      sheet.deleteRow(i + 1);
+      logAction(userEmail, 'DELETE_BILL', id, 'Deleted bill');
+      return { deleted: true, id: id };
+    }
+  }
+  throw new Error('Bill ID not found: ' + id);
+}
+
+/**
+ * Payment Log Operations
+ */
+function recordPayment(pmt, userEmail) {
+  if (!pmt) throw new Error('No payment data provided.');
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const paySheet = ss.getSheetByName(SHEET_NAMES.PAYMENTS);
+  const headers = paySheet.getDataRange().getValues()[0];
+
+  const id = pmt.id || Utilities.getUuid();
+  const now = new Date().toISOString();
+  const paymentDate = pmt.paymentDate || now.substring(0, 10);
+
+  const rowObj = {
+    id: id,
+    billId: pmt.billId || '',
+    accountId: pmt.accountId || '',
+    title: pmt.title || 'Bill Payment',
+    amount: Number(pmt.amount) || 0,
+    currency: pmt.currency || 'USD',
+    paymentDate: paymentDate,
+    confirmationNumber: pmt.confirmationNumber || '',
+    paidBy: pmt.paidBy || userEmail,
+    paymentMethod: pmt.paymentMethod || '',
+    receiptNote: pmt.receiptNote || '',
+    createdAt: now
+  };
+
+  const rowValues = headers.map(h => rowObj[h] !== undefined ? rowObj[h] : '');
+  paySheet.appendRow(rowValues);
+
+  // If linked to a Bill, update bill's lastPaidDate, lastPaidAmount, and advance nextDueDate!
+  if (pmt.billId) {
+    advanceBillDueDate(pmt.billId, paymentDate, rowObj.amount, userEmail);
+  }
+
+  logAction(userEmail, 'RECORD_PAYMENT', id, 'Paid $' + rowObj.amount + ' for ' + rowObj.title);
+  return rowObj;
+}
+
+function advanceBillDueDate(billId, paymentDateStr, paidAmount, userEmail) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.BILLS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  const idIdx = headers.indexOf('id');
+  const freqIdx = headers.indexOf('frequency');
+  const nextDueIdx = headers.indexOf('nextDueDate');
+  const lastPaidDateIdx = headers.indexOf('lastPaidDate');
+  const lastPaidAmtIdx = headers.indexOf('lastPaidAmount');
+  const updatedIdx = headers.indexOf('updatedAt');
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idIdx]) === String(billId)) {
+      const freq = String(data[i][freqIdx]).toLowerCase();
+      const currentDue = data[i][nextDueIdx] ? new Date(data[i][nextDueIdx]) : new Date(paymentDateStr);
+      
+      let nextDue = new Date(currentDue);
+      if (isNaN(nextDue.getTime())) nextDue = new Date();
+
+      if (freq === 'monthly') {
+        nextDue.setMonth(nextDue.getMonth() + 1);
+      } else if (freq === 'yearly' || freq === 'annually') {
+        nextDue.setFullYear(nextDue.getFullYear() + 1);
+      } else if (freq === 'quarterly') {
+        nextDue.setMonth(nextDue.getMonth() + 3);
+      }
+
+      const nextDueStr = Utilities.formatDate(nextDue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      
+      sheet.getRange(i + 1, nextDueIdx + 1).setValue(nextDueStr);
+      sheet.getRange(i + 1, lastPaidDateIdx + 1).setValue(paymentDateStr);
+      sheet.getRange(i + 1, lastPaidAmtIdx + 1).setValue(paidAmount);
+      if (updatedIdx >= 0) sheet.getRange(i + 1, updatedIdx + 1).setValue(new Date().toISOString());
+      break;
+    }
+  }
+}
+
+function deletePayment(id, userEmail) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.PAYMENTS);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idColIdx = headers.indexOf('id');
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idColIdx]) === String(id)) {
+      sheet.deleteRow(i + 1);
+      logAction(userEmail, 'DELETE_PAYMENT', id, 'Deleted payment record');
+      return { deleted: true, id: id };
+    }
+  }
+  throw new Error('Payment ID not found: ' + id);
+}
+
+/**
+ * Settings & Authorization
+ */
+function getSettingsMap() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.SETTINGS);
+  const data = sheet.getDataRange().getValues();
+  const map = {};
+  for (let i = 1; i < data.length; i++) {
+    const key = String(data[i][0]).trim();
+    if (key) {
+      map[key] = data[i][1];
+    }
+  }
+  return map;
+}
+
+function updateSettings(settingsObj, userEmail) {
+  if (!settingsObj) return {};
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.SETTINGS);
+  const data = sheet.getDataRange().getValues();
+
+  const existing = {};
+  for (let i = 1; i < data.length; i++) {
+    const k = String(data[i][0]).trim();
+    if (k) existing[k] = i + 1;
+  }
+
+  for (const key in settingsObj) {
+    const val = settingsObj[key];
+    if (existing[key]) {
+      sheet.getRange(existing[key], 2).setValue(val);
+    } else {
+      sheet.appendRow([key, val, new Date().toISOString()]);
+    }
+  }
+
+  logAction(userEmail, 'UPDATE_SETTINGS', 'Settings', 'Updated family settings');
+  return getSettingsMap();
+}
+
+function isEmailAuthorized(email) {
+  if (!email) return false;
+  const settings = getSettingsMap();
+  const rawList = settings['authorized_emails'] || '';
+  if (!rawList || rawList.trim() === '*' || rawList.trim() === '') {
+    // If empty or '*', all authenticated family members are allowed
+    return true;
+  }
+  const allowed = rawList.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  return allowed.includes(email.trim().toLowerCase());
+}
+
+/**
+ * Audit Logging
+ */
+function logAction(userEmail, action, targetId, details) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAMES.LOGS);
+    if (!sheet) return;
+    sheet.appendRow([
+      new Date().toISOString(),
+      userEmail || 'unknown',
+      action || 'INFO',
+      targetId || '',
+      details || ''
+    ]);
+  } catch (e) {
+    // Log failure shouldn't abort transaction
+  }
+}
+
+/**
+ * Sheet Initialization & Schema
+ */
+function initializeSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  const schema = {
+    [SHEET_NAMES.ACCOUNTS]: [
+      'id', 'category', 'subcategory', 'name', 'provider', 'website',
+      'currentPlan', 'encryptedUsername', 'encryptedPassword', 'encryptedPin',
+      'encryptedAccountNumber', 'encryptedNotes', 'status', 'previousProviders',
+      'tags', 'createdAt', 'updatedAt', 'lastModifiedBy'
+    ],
+    [SHEET_NAMES.BILLS]: [
+      'id', 'accountId', 'billName', 'category', 'frequency', 'amount',
+      'currency', 'nextDueDate', 'autoPay', 'paymentMethod', 'reminderDays',
+      'status', 'website', 'encryptedDetails', 'notes', 'lastPaidDate',
+      'lastPaidAmount', 'createdAt', 'updatedAt', 'lastModifiedBy'
+    ],
+    [SHEET_NAMES.PAYMENTS]: [
+      'id', 'billId', 'accountId', 'title', 'amount', 'currency',
+      'paymentDate', 'confirmationNumber', 'paidBy', 'paymentMethod',
+      'receiptNote', 'createdAt'
+    ],
+    [SHEET_NAMES.SETTINGS]: [
+      'key', 'value', 'updatedAt'
+    ],
+    [SHEET_NAMES.LOGS]: [
+      'timestamp', 'userEmail', 'action', 'targetId', 'details'
+    ]
+  };
+
+  for (const sheetName in schema) {
+    let sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      sheet = ss.insertSheet(sheetName);
+    }
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(schema[sheetName]);
+      sheet.getRange(1, 1, 1, schema[sheetName].length)
+        .setFontWeight('bold')
+        .setBackground('#1e293b')
+        .setFontColor('#f8fafc');
+      sheet.setFrozenRows(1);
+    }
+  }
+
+  // Populate default settings if empty
+  const setSheet = ss.getSheetByName(SHEET_NAMES.SETTINGS);
+  if (setSheet.getLastRow() <= 1) {
+    setSheet.appendRow(['family_name', 'Our Family Vault', new Date().toISOString()]);
+    setSheet.appendRow(['authorized_emails', '', new Date().toISOString()]);
+    setSheet.appendRow(['currency_symbol', '$', new Date().toISOString()]);
+    setSheet.appendRow(['default_reminder_days', '7', new Date().toISOString()]);
+  }
+
+  // Remove default 'Sheet1' if it exists and is empty
+  const sheet1 = ss.getSheetByName('Sheet1');
+  if (sheet1 && ss.getSheets().length > 1 && sheet1.getLastRow() === 0) {
+    try { ss.deleteSheet(sheet1); } catch (e) {}
+  }
+}
+
+function ensureInitialized() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss.getSheetByName(SHEET_NAMES.ACCOUNTS)) {
+    initializeSheets();
+  }
+}
+
+/**
+ * Helper: Convert Sheet to Array of JSON Objects
+ */
+function getSheetDataAsObjects(sheetName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return [];
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length <= 1) return [];
+
+  const headers = rows[0];
+  const result = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    // Skip completely empty rows
+    if (!row.some(cell => cell !== '')) continue;
+
+    const item = {};
+    for (let h = 0; h < headers.length; h++) {
+      const key = headers[h];
+      let val = row[h];
+      if (val instanceof Date) {
+        val = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      }
+      item[key] = val;
+    }
+    result.push(item);
+  }
+  return result;
+}
+
+/**
+ * Helper: Return JSON Response with CORS Headers
+ */
+function jsonResponse(obj, statusCode) {
+  const output = ContentService.createTextOutput(JSON.stringify(obj));
+  output.setMimeType(ContentService.MimeType.JSON);
+  return output;
+}
+
+/**
+ * Email Notification for Urgent & Upcoming Bills
+ */
+function sendBillAlertEmail(targetEmail) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const bills = getSheetDataAsObjects(SHEET_NAMES.BILLS);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const urgentBills = [];
+  bills.forEach(b => {
+    if (!b.nextDueDate || b.status === 'cancelled') return;
+    const d = new Date(b.nextDueDate);
+    d.setHours(0, 0, 0, 0);
+    const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+    if (diff <= 7) {
+      urgentBills.push({
+        name: b.billName || 'Untitled Bill',
+        amount: Number(b.amount) || 0,
+        dueDate: b.nextDueDate,
+        category: b.category || 'General',
+        diff: diff
+      });
+    }
+  });
+
+  if (urgentBills.length === 0) {
+    return { success: true, count: 0, message: 'ပေးဆောင်ရန် ကျန်ရှိသော ဘေလ် မရှိပါ။' };
+  }
+
+  const recipient = targetEmail || Session.getActiveUser().getEmail();
+  urgentBills.sort((a, b) => a.diff - b.diff);
+
+  let rowsHtml = '';
+  urgentBills.forEach(b => {
+    const isLate = b.diff < 0;
+    const badgeColor = isLate ? '#ef4444' : (b.diff <= 3 ? '#f59e0b' : '#3b82f6');
+    const statusText = isLate ? (Math.abs(b.diff) + ' ရက် လွန်နေပါပြီ (Overdue)') : ('နောက် ' + b.diff + ' ရက်အတွင်း ပေးရန်');
+    rowsHtml += '<tr>' +
+      '<td style="padding:12px; border-bottom:1px solid #e2e8f0; font-weight:bold;">' + b.name + '<br><span style="font-size:11px; color:#64748b; font-weight:normal;">' + b.category + '</span></td>' +
+      '<td style="padding:12px; border-bottom:1px solid #e2e8f0; font-weight:bold; color:#0f172a;">$' + b.amount.toFixed(2) + '</td>' +
+      '<td style="padding:12px; border-bottom:1px solid #e2e8f0;">' + b.dueDate + '</td>' +
+      '<td style="padding:12px; border-bottom:1px solid #e2e8f0;"><span style="background:' + badgeColor + '15; color:' + badgeColor + '; padding:4px 8px; border-radius:6px; font-weight:bold; font-size:12px;">' + statusText + '</span></td>' +
+      '</tr>';
+  });
+
+  const htmlBody = '<div style="font-family:sans-serif; max-width:620px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">' +
+    '<div style="background:#0f172a; padding:20px; color:#ffffff;">' +
+    '<h2 style="margin:0; font-size:18px;">🛡️ Family Vault - Bill Payment Reminder</h2>' +
+    '<p style="margin:6px 0 0 0; font-size:13px; color:#94a3b8;">ပေးဆောင်ရန် ကျန်ရှိသော လစဉ်ဘေလ် သတိပေးချက်များ</p>' +
+    '</div>' +
+    '<div style="padding:20px;">' +
+    '<p style="margin-top:0; font-size:14px; color:#334155;">မင်္ဂလာပါ၊ သင့်မိသားစုတွင် ပေးဆောင်ရန် ရက်နီးကပ်နေသော သို့မဟုတ် ရက်လွန်နေသော ဘေလ် <strong>' + urgentBills.length + ' ခု</strong> ရှိပါသည်:</p>' +
+    '<table style="width:100%; border-collapse:collapse; margin:16px 0; font-size:13px;">' +
+    '<thead><tr style="background:#f8fafc; text-align:left; color:#64748b;">' +
+    '<th style="padding:10px 12px; border-bottom:2px solid #e2e8f0;">ဘေလ်အမည်</th>' +
+    '<th style="padding:10px 12px; border-bottom:2px solid #e2e8f0;">ပမာဏ</th>' +
+    '<th style="padding:10px 12px; border-bottom:2px solid #e2e8f0;">ရက်စွဲ</th>' +
+    '<th style="padding:10px 12px; border-bottom:2px solid #e2e8f0;">အခြေအနေ</th>' +
+    '</tr></thead>' +
+    '<tbody>' + rowsHtml + '</tbody>' +
+    '</table>' +
+    '<div style="margin-top:20px; padding:12px; background:#eff6ff; border-radius:8px; font-size:12px; color:#1e40af;">' +
+    '💡 သင့် Family Vault Web App တွင် <strong>Log Pay</strong> ပြုလုပ်ပြီး ငွေပေးချေမှု မှတ်တမ်းတင်နိုင်ပါသည်။' +
+    '</div>' +
+    '</div>' +
+    '<div style="background:#f8fafc; padding:14px; text-align:center; font-size:11px; color:#94a3b8; border-top:1px solid #e2e8f0;">' +
+    'Sent automatically by Family Vault System' +
+    '</div>' +
+    '</div>';
+
+  MailApp.sendEmail({
+    to: recipient,
+    subject: '🚨 [Family Vault] သတိပေးချက်: ဘေလ် (' + urgentBills.length + ') ခု ပေးဆောင်ရန် ကျန်ရှိနေပါသည်',
+    htmlBody: htmlBody
+  });
+
+  return { success: true, count: urgentBills.length, recipient: recipient };
+}
+
+// နေ့စဉ် မနက်တိုင်း အလိုအလျောက် စစ်ဆေးပြီး အီးမေးလ် ပို့ပေးမည့် Trigger
+function createDailyAlertTrigger() {
+  ScriptApp.newTrigger('dailyBillAlertJob')
+    .timeBased()
+    .everyDays(1)
+    .atHour(8)
+    .create();
+}
+
+function dailyBillAlertJob() {
+  sendBillAlertEmail();
+}
