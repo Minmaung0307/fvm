@@ -9,6 +9,7 @@
     <link rel="icon" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/view-switcher.css" />
   </head>
   <body>
     <header>
@@ -21,10 +22,9 @@
     <main>
       <section id="gate" class="panel">
         <div class="eyebrow">PRIVATE • ENCRYPTED • FAMILY</div>
-        <h1>Save your records!</h1>
-        <p>
-          Save accounts, bills, and docs to your Drive.
-        </p>
+        <h1 class="save-title">Save</h1>
+        <h1 class="records-title">Your Records!</h1>
+        <p>Save accounts, bills, and docs to your Drive.</p>
         <button id="login">Sign in with Google</button>
         <form id="unlockForm" hidden>
           <label
@@ -362,5 +362,6 @@
     </dialog>
     <div id="fieldTooltip" class="field-tooltip" role="tooltip" hidden></div>
     <script type="module" src="/app.js"></script>
+    <script type="module" src="/view-switcher.js"></script>
   </body>
 </html>

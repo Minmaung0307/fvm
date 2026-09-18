@@ -1,3 +1,5 @@
+အခုလက်ရှိ Version က 2.2 အခမဲ့ပါ
+
 ၁။ apiUrl ယူရန်
 ==============
 1. Google Apps Script ကိုဖွင့်ပါ။
@@ -95,3 +97,14 @@ Deploy → Manage deployments → ✏️ Edit
 - Execute as: Me
 - Who has access: Anyone
 ပြီးရင် Deploy နှိပ်ပါ။ Existing deployment ကို update လုပ်တာဖြစ်လို့ apiUrl အဟောင်းကို ဆက်သုံးနိုင်ပါတယ်။
+
+မိမိ Gmail ရဲ့ Google Drive ထဲမှာ—
+==============================
+- Family Vault — Private folder ရှိပါတယ်။
+- အဲဒီထဲက Family Vault — Encrypted Database ဆိုတဲ့ Google Sheet မှာ accounts၊ bills၊ groups၊ categories နဲ့ payment history တွေ သိမ်းထားပါတယ်။
+- Upload လုပ်ထားတဲ့ documents တွေက အဲဒီ Drive folder ထဲမှာ သီးခြား encrypted ဖိုင်တွေအဖြစ် သိမ်းထားပါတယ်။
+Sheet ဖွင့်ကြည့်ရင် password နဲ့ မှတ်တမ်းတွေကို ဖတ်လို့ရတဲ့စာသားအဖြစ် မမြင်ရပါဘူး။ လုံခြုံအောင် encrypt လုပ်ထားတာကြောင့် Family Vault app မှာ မိမိ passphrase နဲ့ ဖွင့်မှ မြင်ရပါတယ်။
+Sheet ထဲက စာတွေကို လက်နဲ့ မပြင်၊ မဖျက်ပါနဲ့။ App ထဲကနေ Edit / Delete လုပ်ပါ။
+
+အခုလက်ရှိ Version က 2.2 အခမဲ့ပါ
+အကယ်၍ Version v3 ကို update လုပ်ပါက blazing billing အတွက် တစ်လ $20 လောက် ကုန်ကျဖွယ်ရှိပါတယ်။
