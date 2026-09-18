@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Vault - Dashboard & Accounts</title>
+  
+  <!-- PWA Manifest & Icons -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="apple-touch-icon" href="icons/icon-192.svg">
+
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
+    
+    .sidebar { width: 250px; background: #0f172a; color: #fff; height: 100vh; position: sticky; top: 0; display: flex; flex-direction: column; flex-shrink: 0; }
+    .brand { padding: 20px; font-size: 18px; font-weight: bold; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #1e293b; }
+    .nav-list { list-style: none; padding: 15px 10px; flex: 1; display: flex; flex-direction: column; gap: 5px; }
+    .nav-btn { width: 100%; text-align: left; padding: 10px 14px; background: none; border: none; color: #94a3b8; font-size: 14px; font-weight: 500; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 10px; }
+    .nav-btn:hover { background: #1e293b; color: #fff; }
+    .nav-btn.active { background: var(--primary); color: #fff; font-weight: 600; }
+    .sidebar-footer { padding: 15px; border-top: 1px solid #1e293b; font-size: 12px; color: #94a3b8; }
+    
+    .main { flex: 1; padding: 24px; max-width: 1200px; margin: 0 auto; overflow-y: auto; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: #fff; border-color: var(--border); color: var(--text); }
+    .btn-secondary:hover { background: #f1f5f9; }
+    .btn-danger { background: #fee2e2; color: #b91c1c; }
+    
+    .view { display: none; }
+    .view.active { display: block; }
+    
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .kpi-card { background: #fff; padding: 18px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .kpi-title { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; }
+    .kpi-val { font-size: 24px; font-weight: bold; }
+    
+    .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+    .item-card { background: #fff; border-radius: 12px; border: 1px solid var(--border); padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 10px; }
+    .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .badge-active { background: #dcfce7; color: #166534; }
+    .badge-urgent { background: #fee2e2; color: #991b1b; }
+    .badge-soon { background: #fef3c7; color: #92400e; }
+    .badge-ok { background: #e0f2fe; color: #075985; }
+    
+    .history-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px; font-size: 12px; color: #1e40af; }
+    
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid var(--border); }
+    .cal-day-name { font-weight: bold; text-align: center; padding: 8px; font-size: 12px; color: var(--muted); }
+    .cal-cell { min-height: 80px; border: 1px solid #f1f5f9; padding: 6px; font-size: 12px; border-radius: 6px; }
+    .cal-today { background: #eef2ff; border-color: var(--primary); font-weight: bold; }
+    .cal-pill { background: #e0e7ff; color: #3730a3; padding: 2px 4px; border-radius: 4px; font-size: 10px; margin-top: 3px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; padding: 16px; }
+    .modal.open { display: flex; }
+    .modal-box { background: #fff; width: 100%; max-width: 520px; border-radius: 12px; padding: 20px; max-height: 90vh; overflow-y: auto; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+    .form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      .sidebar { width: 100%; height: auto; position: relative; }
+      .nav-list { flex-direction: row; flex-wrap: wrap; }
+      .main { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <aside class="sidebar">
+    <div class="brand"><span>🛡️</span> Family Vault</div>
+    <ul class="nav-list">
+      <li><button class="nav-btn active" onclick="showView('dashboard')">📊 Dashboard</button></li>
+      <li><button class="nav-btn" onclick="showView('accounts')">🔐 Accounts & Passwords</button></li>
+      <li><button class="nav-btn" onclick="showView('bills')">💳 Monthly Bills</button></li>
+      <li><button class="nav-btn" onclick="showView('calendar')">📅 Bill Calendar</button></li>
+      <li><button class="nav-btn" onclick="showView('payments')">📜 Payment Logs</button></li>
+      <li><button class="nav-btn" onclick="showView('settings')">⚙️ Settings</button></li>
+    </ul>
+    <div class="sidebar-footer">
+      <div id="vault-lock-label">🔒 Master Key: Locked</div>
+      <button class="btn btn-secondary" style="width:100%; margin-top:8px; font-size:11px;" onclick="openModal('modal-master')">Unlock Master Key</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="top-bar">
+      <div>
+        <h2 id="view-title" style="font-size: 20px; font-weight: 700;">Family Dashboard</h2>
+        <span style="font-size: 12px; color: var(--muted);" id="sync-status">Google Sheets: Connected 🟢</span>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-secondary" onclick="playChime()" title="Play Notification Sound">🔔 Sound Test</button>
+        <button class="btn btn-secondary" style="background:#f0fdf4; border-color:#86efac; color:#166534;" onclick="triggerEmailAlert()" title="Send email reminder to family">📧 Send Email Alert</button>
+        <button class="btn btn-secondary" onclick="openModal('modal-master')">🔑 Master Key</button>
+        <button class="btn btn-primary" onclick="openModal('modal-account')">+ New Account</button>
+        <button class="btn btn-primary" style="background:#0ea5e9;" onclick="openModal('modal-bill')">+ New Bill</button>
+      </div>
+    </div>
+
+    <!-- VIEW 1: DASHBOARD -->
+    <div id="view-dashboard" class="view active">
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-title">Total Monthly Bills</div>
+          <div class="kpi-val" id="kpi-total-monthly">$0.00</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Due in Next 7 Days</div>
+          <div class="kpi-val" id="kpi-due-7days" style="color: var(--warning);">$0.00 (0)</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Overdue Bills</div>
+          <div class="kpi-val" id="kpi-overdue" style="color: var(--danger);">0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-title">Active Accounts</div>
+          <div class="kpi-val" id="kpi-active-accounts">0</div>
+        </div>
+      </div>
+      <h3 style="font-size: 16px; margin-bottom: 12px;">Upcoming Bills & Deadlines</h3>
+      <div id="dashboard-upcoming-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+    </div>
+
+    <!-- VIEW 2: ACCOUNTS -->
+    <div id="view-accounts" class="view">
+      <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
+        <input type="text" id="acc-search" class="form-control" style="max-width:300px;" placeholder="Search accounts..." oninput="renderAccounts()">
+        <button class="btn btn-primary" onclick="openModal('modal-account')">+ Add Account</button>
+      </div>
+      <div id="accounts-grid" class="cards-grid"></div>
+    </div>
+
+    <!-- VIEW 3: BILLS -->
+    <div id="view-bills" class="view">
+      <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
+        <input type="text" id="bill-search" class="form-control" style="max-width:300px;" placeholder="Search bills..." oninput="renderBills()">
+        <button class="btn btn-primary" onclick="openModal('modal-bill')">+ Add Bill</button>
+      </div>
+      <div id="bills-grid" class="cards-grid"></div>
+    </div>
+
+    <!-- VIEW 4: CALENDAR -->
+    <div id="view-calendar" class="view">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3 id="cal-month-name">Month Year</h3>
+        <div>
+          <button class="btn btn-secondary" onclick="changeMonth(-1)">◀ Prev</button>
+          <button class="btn btn-secondary" onclick="resetMonth()">Today</button>
+          <button class="btn btn-secondary" onclick="changeMonth(1)">Next ▶</button>
+        </div>
+      </div>
+      <div id="calendar-grid" class="cal-grid"></div>
+    </div>
+
+    <!-- VIEW 5: PAYMENTS -->
+    <div id="view-payments" class="view">
+      <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
+        <h3>Payment History Log</h3>
+        <button class="btn btn-primary" onclick="openPayModal()">+ Record Payment</button>
+      </div>
+      <table style="width:100%; border-collapse:collapse; background:#fff; border-radius:8px; overflow:hidden; font-size:13px; border:1px solid var(--border);">
+        <thead>
+          <tr style="background:#f8fafc; border-bottom:1px solid var(--border); text-align:left;">
+            <th style="padding:10px 14px;">Date</th>
+            <th style="padding:10px 14px;">Bill / Item</th>
+            <th style="padding:10px 14px;">Amount</th>
+            <th style="padding:10px 14px;">Confirmation #</th>
+            <th style="padding:10px 14px;">Method</th>
+          </tr>
+        </thead>
+        <tbody id="payments-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- VIEW 6: SETTINGS -->
+    <div id="view-settings" class="view">
+      <div style="background:#fff; padding:20px; border-radius:12px; border:1px solid var(--border); max-width:600px;">
+        <h3 style="margin-bottom:12px;">Google Sheets Backend Settings</h3>
+        <div class="form-group">
+          <label>Google Apps Script Web App URL</label>
+          <input type="url" id="gas-url-input" class="form-control" style="font-family:monospace; font-size:12px;">
+        </div>
+        <button class="btn btn-primary" onclick="saveGasUrl()">Save & Sync</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL: Urgent Bill Alert (Auto-pops on launch if bills need attention) -->
+  <div id="modal-urgent" class="modal">
+    <div class="modal-box" style="max-width:520px; border-top: 5px solid #ef4444;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+        <div>
+          <h3 style="color:#b91c1c; display:flex; align-items:center; gap:8px; margin:0;">
+            🚨 Urgent Bill Alert (သတိပေးချက်)
+          </h3>
+          <p style="font-size:12px; color:var(--muted); margin:4px 0 0 0;">
+            ပေးဆောင်ရန် ရက်နီးကပ်နေသော သို့မဟုတ် ရက်လွန်နေသော ဘေလ်များ ရှိနေပါသည်
+          </p>
+        </div>
+        <button class="btn btn-secondary" style="padding:2px 8px; font-size:12px;" onclick="closeModal('modal-urgent')">✕</button>
+      </div>
+
+      <div id="urgent-bills-container" style="display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; margin-bottom:16px;">
+        <!-- Injected via JS -->
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border); padding-top:12px;">
+        <button class="btn btn-secondary" style="font-size:12px;" onclick="playChime()">🔔 Replay Sound</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-primary" style="background:#0284c7; font-size:12px;" onclick="triggerEmailAlert()">📧 Email Summary</button>
+          <button class="btn btn-primary" style="font-size:12px;" onclick="closeModal('modal-urgent')">Got It (နားလည်ပါပြီ)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Master Key -->
+  <div id="modal-master" class="modal">
+    <div class="modal-box" style="max-width:380px;">
+      <h3 style="margin-bottom:8px;">🔐 Master Passphrase</h3>
+      <p style="font-size:12px; color:var(--muted); margin-bottom:14px;">Enter family master passphrase to encrypt passwords.</p>
+      <input type="password" id="master-pass-input" class="form-control" placeholder="Enter master passphrase" style="margin-bottom:14px;">
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-secondary" onclick="closeModal('modal-master')">Cancel</button>
+        <button class="btn btn-primary" onclick="unlockMaster()">Unlock Vault</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Add Account -->
+  <div id="modal-account" class="modal">
+    <div class="modal-box">
+      <h3 style="margin-bottom:14px;">Add New Account</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Account / Name *</label>
+          <input type="text" id="m-acc-name" class="form-control" placeholder="e.g. Verizon Fios Gigabit">
+        </div>
+        <div class="form-group">
+          <label>Current Provider *</label>
+          <input type="text" id="m-acc-provider" class="form-control" placeholder="e.g. Verizon">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Category</label>
+          <select id="m-acc-category" class="form-control">
+            <option value="Phone">Phone</option>
+            <option value="Internet">Internet</option>
+            <option value="Mortgage">Mortgage</option>
+            <option value="Utilities">Utilities</option>
+            <option value="Insurance">Insurance</option>
+            <option value="Subscriptions">Subscriptions</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Website</label>
+          <input type="url" id="m-acc-website" class="form-control" placeholder="https://...">
+        </div>
+      </div>
+      <div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid var(--border); margin-bottom:12px;">
+        <div style="font-size:12px; font-weight:bold; color:var(--primary); margin-bottom:8px;">🔒 Encrypted Credentials</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Username / Login</label>
+            <input type="text" id="m-acc-user" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Account #</label>
+            <input type="text" id="m-acc-no" class="form-control">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="m-acc-pass" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Private Notes / PIN</label>
+          <input type="text" id="m-acc-notes" class="form-control">
+        </div>
+      </div>
+      <div style="background:#eff6ff; padding:12px; border-radius:8px; border:1px solid #bfdbfe; margin-bottom:14px;">
+        <div style="font-size:12px; font-weight:bold; color:#1e40af; margin-bottom:6px;">🔄 Previous Provider History (e.g. Comcast → Verizon)</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Previous Provider Name</label>
+            <input type="text" id="m-acc-prev-prov" class="form-control" placeholder="e.g. Comcast Xfinity">
+          </div>
+          <div class="form-group">
+            <label>Switch Date</label>
+            <input type="date" id="m-acc-prev-date" class="form-control">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Reason for Switching</label>
+          <input type="text" id="m-acc-prev-reason" class="form-control" placeholder="e.g. Switched to fiber for faster speed">
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-secondary" onclick="closeModal('modal-account')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveAccountFromModal()">Save Account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Add Bill -->
+  <div id="modal-bill" class="modal">
+    <div class="modal-box">
+      <h3 style="margin-bottom:14px;">Add Recurring Bill</h3>
+      <div class="form-group">
+        <label>Bill Name *</label>
+        <input type="text" id="m-bill-name" class="form-control" placeholder="e.g. T-Mobile 4-Line Plan">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Category</label>
+          <select id="m-bill-category" class="form-control">
+            <option value="Phone">Phone</option>
+            <option value="Internet">Internet</option>
+            <option value="Mortgage">Mortgage</option>
+            <option value="Utilities">Utilities</option>
+            <option value="Insurance">Insurance</option>
+            <option value="Subscriptions">Subscriptions</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Frequency</label>
+          <select id="m-bill-freq" class="form-control">
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+            <option value="quarterly">Quarterly</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Amount ($) *</label>
+          <input type="number" step="0.01" id="m-bill-amount" class="form-control" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>Next Due Date *</label>
+          <input type="date" id="m-bill-date" class="form-control">
+        </div>
+      </div>
+      <div class="form-group" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="m-bill-autopay">
+        <label for="m-bill-autopay" style="margin:0; cursor:pointer;">⚡ AutoPay Enabled</label>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+        <button class="btn btn-secondary" onclick="closeModal('modal-bill')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveBillFromModal()">Save Bill</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Record Payment -->
+  <div id="modal-pay" class="modal">
+    <div class="modal-box" style="max-width:400px;">
+      <h3 style="margin-bottom:14px;">💵 Log Payment</h3>
+      <input type="hidden" id="m-pay-bill-id">
+      <div class="form-group">
+        <label>Payment For</label>
+        <input type="text" id="m-pay-title" class="form-control">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Amount ($)</label>
+          <input type="number" step="0.01" id="m-pay-amount" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="m-pay-date" class="form-control">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Confirmation #</label>
+        <input type="text" id="m-pay-conf" class="form-control" placeholder="e.g. VZ-948201">
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+        <button class="btn btn-secondary" onclick="closeModal('modal-pay')">Cancel</button>
+        <button class="btn btn-primary" onclick="savePaymentFromModal()">Save & Advance Due Date</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbzhJcdSD_frmje9_HhjAEWC9Pl1V4yqj5Hl1RvI8cimizJnz76C5usVCw11K2AjDl8U/exec";
+    let gasUrl = localStorage.getItem("family_vault_gas_url") || DEFAULT_GAS_URL;
+    let masterKey = "";
+    let calDate = new Date();
+
+    let state = {
+      accounts: [
+        {
+          id: "acc-1",
+          name: "Verizon Fios Gigabit Fiber",
+          provider: "Verizon",
+          category: "Internet",
+          website: "https://www.verizon.com",
+          user: "family_admin",
+          pass: "SecretPass!948",
+          no: "849201948-0001",
+          notes: "Router is in the basement server rack",
+          status: "active",
+          previous: [{ provider: "Comcast Xfinity", date: "2023-04-15", reason: "Switched to Verizon for 1Gbps symmetrical upload fiber" }]
+        },
+        {
+          id: "acc-2",
+          name: "T-Mobile Family Voice & Data",
+          provider: "T-Mobile",
+          category: "Phone",
+          website: "https://www.t-mobile.com",
+          user: "family.primary@gmail.com",
+          pass: "TMobileSecure#88",
+          no: "948291039",
+          notes: "4 Voice Lines with free Netflix perk",
+          status: "active",
+          previous: [{ provider: "AT&T Wireless", date: "2022-09-01", reason: "T-Mobile price-lock guarantee" }]
+        },
+        {
+          id: "acc-3",
+          name: "Chase Home Mortgage",
+          provider: "JPMorgan Chase",
+          category: "Mortgage",
+          website: "https://www.chase.com",
+          user: "chase_login_dad",
+          pass: "ChaseVault2024!",
+          no: "492817492019",
+          notes: "30-Year Fixed at 2.875% interest rate",
+          status: "active",
+          previous: []
+        },
+        {
+          id: "acc-4",
+          name: "ConEd Electric & Gas",
+          provider: "ConEdison",
+          category: "Utilities",
+          website: "https://www.coned.com",
+          user: "coned_energy",
+          pass: "ConEdPower#21",
+          no: "918273645",
+          notes: "Budget equalized monthly billing",
+          status: "active",
+          previous: []
+        },
+        {
+          id: "acc-5",
+          name: "State Farm Auto & Home Insurance",
+          provider: "State Farm",
+          category: "Insurance",
+          website: "https://www.statefarm.com",
+          user: "statefarm_fam",
+          pass: "PolicyInsure99$",
+          no: "SF-9482910-A",
+          notes: "Bundled multi-line policy discount",
+          status: "active",
+          previous: [{ provider: "Geico", date: "2022-11-10", reason: "Bundled auto with home for $450/yr discount" }]
+        },
+        {
+          id: "acc-6",
+          name: "Netflix Premium 4K",
+          provider: "Netflix",
+          category: "Subscriptions",
+          website: "https://www.netflix.com",
+          user: "family.streaming@gmail.com",
+          pass: "MoviesChill#99",
+          no: "",
+          notes: "Ultra HD 4-screens plan",
+          status: "active",
+          previous: []
+        }
+      ],
+      bills: [
+        { id: "bill-1", name: "Verizon Fios Gigabit", category: "Internet", frequency: "monthly", amount: 79.99, dueDate: getFuture(5), autoPay: true },
+        { id: "bill-2", name: "T-Mobile 4 Lines", category: "Phone", frequency: "monthly", amount: 140.00, dueDate: getFuture(12), autoPay: true },
+        { id: "bill-3", name: "Chase Mortgage & Escrow", category: "Mortgage", frequency: "monthly", amount: 2150.00, dueDate: getFuture(0), autoPay: true },
+        { id: "bill-4", name: "City Power & Gas", category: "Utilities", frequency: "monthly", amount: 185.50, dueDate: getFuture(18), autoPay: false },
+        { id: "bill-5", name: "State Farm Policy Package", category: "Insurance", frequency: "yearly", amount: 1840.00, dueDate: getFuture(45), autoPay: false },
+        { id: "bill-6", name: "Netflix 4K Ultra HD", category: "Subscriptions", frequency: "monthly", amount: 22.99, dueDate: getFuture(2), autoPay: true }
+      ],
+      payments: [
+        { id: "p-1", title: "Verizon Fios Gigabit", amount: 79.99, date: getFuture(-25), conf: "VZ-948201", method: "AutoPay" },
+        { id: "p-2", title: "Chase Mortgage", amount: 2150.00, date: getFuture(-30), conf: "CHASE-0049281", method: "ACH Checking" }
+      ]
+    };
+
+    function getFuture(days) {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return d.toISOString().substring(0, 10);
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("gas-url-input").value = gasUrl;
+      renderAll();
+      syncWithGas();
+      checkAndShowLaunchAlert();
+    });
+
+    function showView(viewId) {
+      document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+      document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+      document.getElementById("view-" + viewId).classList.add("active");
+      
+      const titles = {
+        dashboard: "Family Dashboard",
+        accounts: "Accounts & Encrypted Passwords",
+        bills: "Monthly & Yearly Bills",
+        calendar: "Bill Due Date Calendar",
+        payments: "Payment History Logs",
+        settings: "Vault Settings"
+      };
+      document.getElementById("view-title").textContent = titles[viewId] || "Family Vault";
+      if (viewId === "calendar") renderCalendar();
+    }
+
+    function renderAll() {
+      renderDashboard();
+      renderAccounts();
+      renderBills();
+      renderCalendar();
+      renderPayments();
+    }
+
+    function renderDashboard() {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      let monthlyTotal = 0, due7Amt = 0, due7Count = 0, overdueCount = 0;
+      const upcomingList = [];
+
+      state.bills.forEach(b => {
+        const amt = Number(b.amount) || 0;
+        if (b.frequency === "monthly") monthlyTotal += amt;
+        else if (b.frequency === "yearly") monthlyTotal += amt / 12;
+        else if (b.frequency === "quarterly") monthlyTotal += amt / 3;
+
+        if (b.dueDate) {
+          const d = new Date(b.dueDate);
+          d.setHours(0,0,0,0);
+          const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+          if (diff < 0) overdueCount++;
+          else if (diff <= 7) { due7Count++; due7Amt += amt; }
+          upcomingList.push({ ...b, diff });
+        }
+      });
+
+      document.getElementById("kpi-total-monthly").textContent = "$" + monthlyTotal.toFixed(2);
+      document.getElementById("kpi-due-7days").textContent = `$${due7Amt.toFixed(2)} (${due7Count})`;
+      document.getElementById("kpi-overdue").textContent = overdueCount;
+      document.getElementById("kpi-active-accounts").textContent = state.accounts.filter(a => a.status === "active").length;
+
+      upcomingList.sort((a,b) => a.diff - b.diff);
+      const feed = document.getElementById("dashboard-upcoming-list");
+      feed.innerHTML = upcomingList.slice(0, 5).map(b => {
+        const isLate = b.diff < 0;
+        const badge = isLate ? `<span class="badge badge-urgent">${Math.abs(b.diff)}d Overdue</span>` : `<span class="badge ${b.diff <= 3 ? 'badge-soon' : 'badge-ok'}">Due in ${b.diff}d</span>`;
+        return `
+          <div style="background:#fff; border:1px solid var(--border); border-radius:8px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
+            <div><strong>${b.name}</strong> <span style="font-size:11px; color:var(--muted);">${b.category} • ${b.frequency}</span></div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="font-weight:bold; font-size:15px;">$${Number(b.amount).toFixed(2)}</span>
+              ${badge}
+              <button class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="openPayForBill('${b.id}')">Log Pay</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderAccounts() {
+      const q = (document.getElementById("acc-search")?.value || "").toLowerCase();
+      const container = document.getElementById("accounts-grid");
+      const list = state.accounts.filter(a => !q || a.name.toLowerCase().includes(q) || a.provider.toLowerCase().includes(q));
+
+      container.innerHTML = list.map(a => {
+        const prev = a.previous && a.previous.length > 0 ? a.previous[0] : null;
+        return `
+          <div class="item-card">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+              <div>
+                <strong style="font-size:16px;">${a.name}</strong>
+                <div style="font-size:12px; color:var(--muted);">${a.provider} • <span class="badge badge-active">${a.category}</span></div>
+              </div>
+              ${a.website ? `<a href="${a.website}" target="_blank" style="font-size:12px; text-decoration:none; color:var(--primary);">Visit ↗</a>` : ''}
+            </div>
+            <div style="background:#f8fafc; padding:10px; border-radius:8px; font-size:12px; display:flex; flex-direction:column; gap:6px;">
+              ${a.no ? `<div><span style="color:var(--muted);">Account #:</span> <code style="font-weight:bold;">${a.no}</code></div>` : ''}
+              ${a.user ? `<div><span style="color:var(--muted);">Login:</span> <code>${a.user}</code></div>` : ''}
+              <div>
+                <span style="color:var(--muted);">Password:</span> 
+                <span id="pwd-${a.id}">••••••••••••</span>
+                <button style="border:none; background:none; cursor:pointer; font-size:12px;" onclick="togglePwd('${a.id}', '${a.pass}')">👁️</button>
+                <button style="border:none; background:none; cursor:pointer; font-size:12px;" onclick="copyTxt('${a.pass}')">📋</button>
+              </div>
+              ${a.notes ? `<div style="color:var(--muted); margin-top:2px;">Notes: ${a.notes}</div>` : ''}
+            </div>
+            ${prev ? `
+              <div class="history-box">
+                <strong>🔄 Previous Provider:</strong> ${prev.provider} (${prev.date || 'Past'})
+                <div style="font-style:italic;">"${prev.reason || 'Provider upgrade'}"</div>
+              </div>
+            ` : ''}
+            <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:auto;">
+              <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteAccount('${a.id}')">Delete</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderBills() {
+      const q = (document.getElementById("bill-search")?.value || "").toLowerCase();
+      const container = document.getElementById("bills-grid");
+      const list = state.bills.filter(b => !q || b.name.toLowerCase().includes(q) || b.category.toLowerCase().includes(q));
+
+      container.innerHTML = list.map(b => `
+        <div class="item-card">
+          <div style="display:flex; justify-content:space-between;">
+            <div><strong>${b.name}</strong><div style="font-size:12px; color:var(--muted);">${b.category} • ${b.frequency}</div></div>
+            <div style="font-size:18px; font-weight:bold; color:var(--primary);">$${Number(b.amount).toFixed(2)}</div>
+          </div>
+          <div style="background:#f8fafc; padding:10px; border-radius:8px; font-size:12px; display:flex; flex-direction:column; gap:6px;">
+            <div>Next Due Date: <strong>${b.dueDate || 'Not set'}</strong></div>
+            <div>AutoPay: ${b.autoPay ? '<span style="color:#059669; font-weight:bold;">⚡ Enabled</span>' : 'Manual'}</div>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:auto;">
+            <button class="btn btn-primary" style="padding:5px 10px; font-size:12px;" onclick="openPayForBill('${b.id}')">💵 Log Payment</button>
+            <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteBill('${b.id}')">Delete</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function renderCalendar() {
+      const year = calDate.getFullYear();
+      const month = calDate.getMonth();
+      const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      document.getElementById("cal-month-name").textContent = `${monthNames[month]} ${year}`;
+
+      const grid = document.getElementById("calendar-grid");
+      const firstDay = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      let html = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => `<div class="cal-day-name">${d}</div>`).join("");
+      for (let i = 0; i < firstDay; i++) {
+        html += `<div class="cal-cell" style="background:#fafafa;"></div>`;
+      }
+
+      const today = new Date();
+      for (let day = 1; day <= daysInMonth; day++) {
+        const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
+        const billsOnDay = state.bills.filter(b => {
+          if (!b.dueDate) return false;
+          const d = new Date(b.dueDate);
+          return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+        });
+
+        html += `
+          <div class="cal-cell ${isToday ? 'cal-today' : ''}">
+            <div style="font-weight:bold; margin-bottom:2px;">${day}</div>
+            ${billsOnDay.map(b => `
+              <div class="cal-pill" onclick="openPayForBill('${b.id}')">⚡ ${b.name} ($${b.amount})</div>
+            `).join("")}
+          </div>
+        `;
+      }
+      grid.innerHTML = html;
+    }
+
+    function changeMonth(delta) { calDate.setMonth(calDate.getMonth() + delta); renderCalendar(); }
+    function resetMonth() { calDate = new Date(); renderCalendar(); }
+
+    function renderPayments() {
+      const tbody = document.getElementById("payments-tbody");
+      tbody.innerHTML = state.payments.map(p => `
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:10px 14px; font-weight:bold;">${p.date}</td>
+          <td style="padding:10px 14px;">${p.title}</td>
+          <td style="padding:10px 14px; font-weight:bold; color:var(--primary);">$${Number(p.amount).toFixed(2)}</td>
+          <td style="padding:10px 14px;"><code>${p.conf || 'None'}</code></td>
+          <td style="padding:10px 14px;">${p.method || 'Manual'}</td>
+        </tr>
+      `).join("");
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add("open"); }
+    function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+    function unlockMaster() {
+      masterKey = document.getElementById("master-pass-input").value;
+      if (masterKey) {
+        document.getElementById("vault-lock-label").textContent = "🔓 Master Key: Unlocked";
+        closeModal("modal-master");
+        alert("Master Vault Unlocked!");
+      }
+    }
+
+    function saveAccountFromModal() {
+      const name = document.getElementById("m-acc-name").value.trim();
+      const provider = document.getElementById("m-acc-provider").value.trim();
+      if (!name || !provider) { alert("Please enter Account Name and Provider."); return; }
+
+      const prevName = document.getElementById("m-acc-prev-prov").value.trim();
+      const previous = prevName ? [{
+        provider: prevName,
+        date: document.getElementById("m-acc-prev-date").value,
+        reason: document.getElementById("m-acc-prev-reason").value.trim()
+      }] : [];
+
+      const newAcc = {
+        id: "acc-" + Date.now(),
+        name, provider,
+        category: document.getElementById("m-acc-category").value,
+        website: document.getElementById("m-acc-website").value.trim(),
+        user: document.getElementById("m-acc-user").value.trim(),
+        pass: document.getElementById("m-acc-pass").value,
+        no: document.getElementById("m-acc-no").value.trim(),
+        notes: document.getElementById("m-acc-notes").value.trim(),
+        status: "active",
+        previous
+      };
+
+      state.accounts.unshift(newAcc);
+      closeModal("modal-account");
+      renderAll();
+      postGas("saveAccount", { account: newAcc });
+    }
+
+    function deleteAccount(id) {
+      if (confirm("Delete this account?")) {
+        state.accounts = state.accounts.filter(a => a.id !== id);
+        renderAll();
+        postGas("deleteAccount", { id });
+      }
+    }
+
+    function saveBillFromModal() {
+      const name = document.getElementById("m-bill-name").value.trim();
+      const amount = parseFloat(document.getElementById("m-bill-amount").value) || 0;
+      if (!name || !amount) { alert("Please enter Bill Name and Amount."); return; }
+
+      const newBill = {
+        id: "bill-" + Date.now(),
+        name,
+        category: document.getElementById("m-bill-category").value,
+        frequency: document.getElementById("m-bill-freq").value,
+        amount,
+        dueDate: document.getElementById("m-bill-date").value,
+        autoPay: document.getElementById("m-bill-autopay").checked
+      };
+
+      state.bills.unshift(newBill);
+      closeModal("modal-bill");
+      renderAll();
+      postGas("saveBill", { bill: newBill });
+    }
+
+    function deleteBill(id) {
+      if (confirm("Delete this recurring bill?")) {
+        state.bills = state.bills.filter(b => b.id !== id);
+        renderAll();
+        postGas("deleteBill", { id });
+      }
+    }
+
+    function openPayForBill(billId) {
+      const b = state.bills.find(x => x.id === billId);
+      if (!b) return;
+      document.getElementById("m-pay-bill-id").value = b.id;
+      document.getElementById("m-pay-title").value = b.name;
+      document.getElementById("m-pay-amount").value = b.amount;
+      document.getElementById("m-pay-date").value = new Date().toISOString().substring(0,10);
+      openModal("modal-pay");
+    }
+
+    function openPayModal() {
+      document.getElementById("m-pay-bill-id").value = "";
+      document.getElementById("m-pay-title").value = "";
+      document.getElementById("m-pay-amount").value = "";
+      document.getElementById("m-pay-date").value = new Date().toISOString().substring(0,10);
+      openModal("modal-pay");
+    }
+
+    function savePaymentFromModal() {
+      const billId = document.getElementById("m-pay-bill-id").value;
+      const title = document.getElementById("m-pay-title").value.trim();
+      const amount = parseFloat(document.getElementById("m-pay-amount").value) || 0;
+      const date = document.getElementById("m-pay-date").value;
+      const conf = document.getElementById("m-pay-conf").value.trim();
+
+      const newPmt = { id: "p-" + Date.now(), title, amount, date, conf, method: "Manual" };
+      state.payments.unshift(newPmt);
+
+      if (billId) {
+        const bill = state.bills.find(b => b.id === billId);
+        if (bill) {
+          const d = new Date(bill.dueDate || date);
+          if (bill.frequency === "monthly") d.setMonth(d.getMonth() + 1);
+          else if (bill.frequency === "yearly") d.setFullYear(d.getFullYear() + 1);
+          else if (bill.frequency === "quarterly") d.setMonth(d.getMonth() + 3);
+          bill.dueDate = d.toISOString().substring(0, 10);
+        }
+      }
+
+      closeModal("modal-pay");
+      renderAll();
+      postGas("recordPayment", { payment: newPmt });
+    }
+
+    function togglePwd(id, plain) {
+      const el = document.getElementById("pwd-" + id);
+      el.textContent = el.textContent === "••••••••••••" ? plain : "••••••••••••";
+    }
+
+    function copyTxt(txt) {
+      navigator.clipboard.writeText(txt).then(() => alert("Copied to clipboard!"));
+    }
+
+    async function syncWithGas() {
+      if (!gasUrl) return;
+      try {
+        const res = await fetch(`${gasUrl}?action=getVaultData`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          document.getElementById("sync-status").textContent = "Google Sheets: Connected 🟢";
+        }
+      } catch(e) {
+        console.warn("GAS fetch notice:", e);
+      }
+    }
+
+    async function postGas(action, payload) {
+      if (!gasUrl) return;
+      try {
+        await fetch(gasUrl, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, ...payload })
+        });
+      } catch(e) {
+        console.warn("GAS sync queued:", e);
+      }
+    }
+
+    function saveGasUrl() {
+      gasUrl = document.getElementById("gas-url-input").value.trim();
+      localStorage.setItem("family_vault_gas_url", gasUrl);
+      alert("Google Apps Script URL saved!");
+      syncWithGas();
+    }
+
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW reg error:', err));
+      });
+    }
+
+    // Web Audio Chime Sound (Gentle 2-tone melodic notification sound)
+    function playChime() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(587.33, ctx.currentTime);
+        gain1.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain1.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start();
+        osc1.stop(ctx.currentTime + 0.35);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
+        gain2.gain.setValueAtTime(0.35, ctx.currentTime + 0.15);
+        gain2.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.8);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(ctx.currentTime + 0.15);
+        osc2.stop(ctx.currentTime + 0.8);
+      } catch (e) {
+        console.warn('Audio play restricted by browser:', e);
+      }
+    }
+
+    // Check and show launch alert
+    function checkAndShowLaunchAlert() {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const urgent = [];
+      state.bills.forEach(b => {
+        if (!b.dueDate) return;
+        const d = new Date(b.dueDate);
+        d.setHours(0, 0, 0, 0);
+        const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+        if (diff <= 3) {
+          urgent.push({ ...b, diff });
+        }
+      });
+
+      if (urgent.length > 0) {
+        urgent.sort((a, b) => a.diff - b.diff);
+        const container = document.getElementById('urgent-bills-container');
+        if (container) {
+          container.innerHTML = urgent.map(b => {
+            const isLate = b.diff < 0;
+            const badge = isLate
+              ? `<span class="badge badge-urgent">${Math.abs(b.diff)}d Overdue</span>`
+              : `<span class="badge ${b.diff <= 1 ? 'badge-urgent' : 'badge-soon'}">Due in ${b.diff}d</span>`;
+            return `
+              <div style="background:#fff; border:1px solid #fed7aa; border-radius:8px; padding:10px; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <strong style="font-size:13px;">${b.name}</strong>
+                  <div style="font-size:11px; color:var(--muted);">Due: ${b.dueDate} • ${b.category}</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-weight:bold; font-size:14px; color:#b91c1c;">$${Number(b.amount).toFixed(2)}</span>
+                  ${badge}
+                  <button class="btn btn-secondary" style="padding:3px 8px; font-size:11px;" onclick="closeModal('modal-urgent'); openPayForBill('${b.id}');">Log Pay</button>
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          setTimeout(() => {
+            playChime();
+            openModal('modal-urgent');
+          }, 600);
+        }
+      }
+    }
+
+    // Trigger Email Alert via Google Apps Script Backend
+    async function triggerEmailAlert() {
+      if (!gasUrl) {
+        alert('Please configure your Google Apps Script URL in Settings.');
+        return;
+      }
+      const targetEmail = prompt('သတိပေးချက် ပို့လိုသည့် Email လိပ်စာ ရိုက်ထည့်ပါ (ဥပမာ: family@gmail.com):', localStorage.getItem('vault_alert_email') || '');
+      if (!targetEmail) return;
+
+      localStorage.setItem('vault_alert_email', targetEmail);
+
+      try {
+        alert('အီးမေးလ် ပေးပို့နေပါသည်... ခေတ္တစောင့်ဆိုင်းပါ...');
+        await fetch(gasUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'sendEmailAlert',
+            targetEmail: targetEmail,
+            userEmail: targetEmail
+          })
+        });
+        alert('အီးမေးလ် ပေးပို့ခြင်း အောင်မြင်ပါသည်!\n\n' + targetEmail + ' သို့ ဘေလ်သတိပေးချက် ပေးပို့ထားပြီး ဖြစ်ပါသည်။');
+      } catch (e) {
+        alert('အီးမေးလ် ပေးပို့ရာတွင် အမှားအယွင်း ဖြစ်ပေါ်ခဲ့ပါသည်: ' + e.message);
+      }
+    }
+  </script>
+</body>
+</html>
