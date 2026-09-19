@@ -1,0 +1,60 @@
+import {stableColorIndex} from './view-modes-core.js';
+const $=selector=>document.querySelector(selector);
+const settings=$('#settingsPanel'),help=$('#helpContent');
+const make=(tag,className,text)=>{const node=document.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=text;return node;};
+const clickExisting=selector=>$(selector)?.click();
+const currentMode=()=>{try{return localStorage.getItem('family-vault-view-mode-v2')||'normal';}catch{return'normal';}};
+const updateModeButtons=(mode=currentMode())=>document.querySelectorAll('[data-settings-view-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.settingsViewMode===mode)));
+
+if(settings&&!settings.dataset.enhanced){
+  settings.dataset.enhanced='true';settings.classList.add('settings-dashboard');
+  const originalTitle=settings.querySelector(':scope > h2');if(originalTitle)originalTitle.textContent='Settings';
+  const intro=make('section','settings-intro'),introText=make('div');
+  introText.append(make('span','eyebrow','ORGANIZE • PROTECT • BACK UP'),make('h2','','Vault ကို စနစ်တကျထိန်းပါ။'),make('p','muted','Group/Category၊ ပြသပုံ၊ reminders၊ encryption နဲ့ backup ကို ဒီနေရာမှာ ပြင်နိုင်ပါတယ်။'));
+  const guideButton=make('button','','? Settings အသုံးပြုနည်း');guideButton.type='button';guideButton.onclick=()=>clickExisting('#help');intro.append(introText,guideButton);originalTitle?.insertAdjacentElement('afterend',intro);
+
+  const summary=make('div','settings-summary');
+  for(const [key,label,icon]of[['groups','Groups','◉'],['categories','Categories','◆'],['documents','Documents','▤'],['storage','Private storage','◇']]){const item=make('div','settings-summary-item');item.dataset.summary=key;item.append(make('span','settings-summary-icon',icon),make('small','',label),make('strong','','—'));summary.append(item);}
+  intro.insertAdjacentElement('afterend',summary);
+
+  const display=make('section','settings-card settings-display'),displayHead=make('div','settings-card-head');displayHead.append(make('div','','ပြသပုံ'),make('span','settings-card-icon','▦'));display.append(displayHead,make('p','muted','Accounts, bills နဲ့ documents ကို ဘယ်လိုပြမလဲ ရွေးပါ။ ရွေးချယ်မှုကို ဒီ browser မှာသာ မှတ်ထားပါတယ်။'));
+  const modes=make('div','settings-mode-picker');
+  for(const [value,label,description]of[['normal','▤ Normal','Card အပြည့်ကို အမြဲပြ'],['compact-grid','▦ Grid','အကွက်သေးများများ'],['compact-list','☷ List','တစ်ကြောင်းစီပြ']]){const button=make('button');button.type='button';button.dataset.settingsViewMode=value;button.append(make('strong','',label),make('small','',description));button.onclick=()=>window.dispatchEvent(new CustomEvent('family-vault:set-view-mode',{detail:value}));modes.append(button);}display.append(modes);
+  const legend=make('section','settings-card settings-legend'),legendHead=make('div','settings-card-head');legendHead.append(make('div','','အရောင်အမှတ်အသား'),make('span','settings-card-icon','●'));legend.append(legendHead,make('p','muted','အမည်တူ Group/Category က အမြဲတူတဲ့အရောင်ရပါတယ်။ အသစ်ထည့်တာတွေကို အလိုအလျောက်အရောင်ပေးပါတယ်။'));const samples=make('div','settings-color-samples');samples.id='settingsColorSamples';legend.append(samples);
+  const displayGrid=make('div','settings-feature-grid');displayGrid.append(display,legend);summary.insertAdjacentElement('afterend',displayGrid);
+
+  const organizers=settings.querySelector('.settings-organizers');if(organizers){const title=make('div','settings-section-heading');title.append(make('div','','Groups & Categories'),make('p','muted','Rename/Remove လုပ်လျှင် ဆိုင်ရာ records/documents တွေကိုပါ စနစ်တကျပြောင်းပေးပါတယ်။'));organizers.insertAdjacentElement('beforebegin',title);}
+  if(organizers)for(const [index,section]of [...organizers.children].entries()){
+    const input=make('input','settings-organizer-search');input.type='search';input.placeholder=(index===0?'Group':'Category')+' အမည်ရှာရန်';input.setAttribute('aria-label',input.placeholder);
+    const list=section.querySelector(index===0?'#groupsList':'#categoriesList');list?.insertAdjacentElement('beforebegin',input);
+    input.oninput=()=>{const query=input.value.trim().toLowerCase();list?.querySelectorAll('.organizer-row').forEach(row=>row.hidden=!!query&&!row.textContent.toLowerCase().includes(query));};
+  }
+
+  const email=$('#emailOptIn')?.closest('label'),drive=$('#driveInfo'),changePass=$('#changePass'),legacy=$('#legacyImport')?.closest('label');
+  const oldNote=[...settings.querySelectorAll(':scope > p.muted')].find(p=>p.textContent.includes('Docs ပါသော backup'));
+  const preferences=make('div','settings-feature-grid settings-lower-grid'),alerts=make('section','settings-card'),alertsHead=make('div','settings-card-head');alertsHead.append(make('div','','Alerts & reminders'),make('span','settings-card-icon','◷'));alerts.append(alertsHead,make('p','muted','Browser alert က app ဖွင့်ထားချိန်၊ email reminder က admin setup လုပ်ထားမှ အလုပ်လုပ်ပါတယ်။'));if(email)alerts.append(email);const browserAlert=make('button','','Browser alerts ဖွင့်ရန်');browserAlert.type='button';browserAlert.onclick=()=>clickExisting('#notifications');alerts.append(browserAlert);
+  const security=make('section','settings-card'),securityHead=make('div','settings-card-head');securityHead.append(make('div','','Security & storage'),make('span','settings-card-icon','◇'));security.append(securityHead,make('p','muted','Passphrase မေ့လျှင် ပြန်ဖော်မရပါ။ Backup ယူပြီး passphrase ကို လုံခြုံသောနေရာမှာ သိမ်းပါ။'));if(drive)security.append(drive);if(changePass)security.append(changePass);const backup=make('button','','Encrypted backup ယူရန်');backup.type='button';backup.onclick=()=>clickExisting('#backup');security.append(backup);const restore=make('button','','Backup restore ရွေးရန်');restore.type='button';restore.onclick=()=>$('#restore')?.click();security.append(restore);if(legacy)security.append(legacy);if(oldNote)security.append(oldNote);preferences.append(alerts,security);settings.append(preferences);
+
+  updateModeButtons();window.addEventListener('family-vault:view-mode',event=>updateModeButtons(event.detail));
+  function badge(kind,name){const span=make('span',`taxonomy-badge ${kind}-color-${stableColorIndex(name)}`,name);span.title=(kind==='category'?'Category: ':'Group: ')+name;return span;}
+  function refreshSettingsOverview(){
+    const groups=[...($('#groupsList')?.querySelectorAll('.organizer-row strong')||[])].map(x=>x.textContent.trim()),categories=[...($('#categoriesList')?.querySelectorAll('.organizer-row strong')||[])].map(x=>x.textContent.trim());
+    for(const [listSelector,kind]of [['#groupsList','group'],['#categoriesList','category']])for(const row of settings.querySelectorAll(listSelector+' .organizer-row')){const name=row.querySelector('strong'),count=row.querySelector('small');if(name){name.className=`taxonomy-badge ${kind}-color-${stableColorIndex(name.textContent.trim())}`;}row.classList.toggle('organizer-unused',count?.textContent.trim().startsWith('0 ')===true);}settings.querySelectorAll('.settings-organizer-search').forEach(input=>input.dispatchEvent(new Event('input')));
+    const set=(key,value)=>{const target=settings.querySelector(`[data-summary="${key}"] strong`);if(target)target.textContent=value;};set('groups',String(groups.length));set('categories',String(categories.length));set('storage',($('#driveInfo')?.textContent||'').trim()?'Connected':'Check');set('documents','Encrypted');
+    const holder=$('#settingsColorSamples');if(holder){holder.replaceChildren();groups.slice(0,4).forEach(name=>holder.append(badge('group',name)));categories.slice(0,4).forEach(name=>holder.append(badge('category',name)));if(!holder.children.length)holder.append(make('span','muted','Group/Category အသစ်ထည့်လျှင် အရောင်နမူနာ ဒီမှာပေါ်ပါမယ်။'));}
+  }
+  const observer=new MutationObserver(refreshSettingsOverview);if($('#groupsList'))observer.observe($('#groupsList'),{childList:true});if($('#categoriesList'))observer.observe($('#categoriesList'),{childList:true});document.querySelector('nav')?.addEventListener('click',()=>queueMicrotask(refreshSettingsOverview));refreshSettingsOverview();
+}
+
+if(help&&!help.dataset.v24){
+  help.dataset.v24='true';const update=document.createElement('div');update.className='guide-v24';
+  update.innerHTML=`
+  <div class="guide-update-banner"><span class="eyebrow">UPDATED GUIDE</span><h2>မြန်မြန်ရှာ၊ လုံခြုံစွာသိမ်း</h2><p>Normal/Grid/List၊ အရောင် badges၊ Documents နဲ့ Payments အသုံးပြုနည်းအသစ်တွေကို အောက်မှာရှင်းပြထားပါတယ်။</p></div>
+  <nav class="guide-shortcuts" aria-label="Guide sections"><button type="button" data-guide-target="guideViews">ပြသပုံ</button><button type="button" data-guide-target="guideColors">အရောင်များ</button><button type="button" data-guide-target="guidePayments">Payments</button><button type="button" data-guide-target="guideSafety">လုံခြုံရေး</button></nav>
+  <section id="guideViews" class="guide-block"><h3>Normal၊ Grid နဲ့ List</h3><div class="guide-choice-grid"><div><strong>▤ Normal</strong><p>Card အပြည့်ကို အမြဲမြင်ရသည်။ အသေးစိတ်ခလုတ်များကို တိုက်ရိုက်သုံးရန်ကောင်းသည်။</p></div><div><strong>▦ Grid</strong><p>အကွက်သေးများများမြင်ရသည်။ Card ကိုနှိပ်၊ Enter/Space နှိပ်မှ အပြည့်ဖြန့်ပြသည်။</p></div><div><strong>☷ List</strong><p>တစ်ကြောင်းစီမြင်ရသည်။ Records များလာလျှင် အမြန်ကြည့်ရန်ကောင်းသည်။ Row ကိုနှိပ်မှ အပြည့်ဖြန့်ပြသည်။</p></div></div><p>Accounts & bills နဲ့ Documents နှစ်နေရာလုံးသုံးနိုင်သည်။ Settings ထဲက ပြသပုံမှလည်း ရွေးနိုင်သည်။</p></section>
+  <section id="guideColors" class="guide-block"><h3>Category နဲ့ Group အရောင်များ</h3><p><strong>Category</strong> badge က record အမျိုးအစား၊ <strong>Group</strong> badge က ကိုယ်ပိုင်စုစည်းရာကို ပြသည်။ အမည်တူရင် အမြဲတူသောအရောင်ရသည်။ အသစ်တိုးသည့်အမည်များကို အလိုအလျောက်အရောင်ပေးသည်။ အရောင်ကိုသာမမှီဘဲ badge စာသားကိုပါကြည့်ပါ။ Documents မှာ Category field မရှိသဖြင့် Group နဲ့ Status ကိုပြသည်။</p></section>
+  <section id="guidePayments" class="guide-block"><h3>Payments မှတ်တမ်းတင်နည်း</h3><ol><li>Accounts & bills သို့သွားပြီး Bill card ကိုဖွင့်ပါ။</li><li><strong>Record payment</strong> ကိုနှိပ်ပြီး Paid date၊ amount နဲ့ memo ဖြည့်ပါ။</li><li>Save payment လုပ်လျှင် history ထဲဝင်ပြီး recurring bill ၏ due date ကို cycle တစ်ခုရွှေ့မည်။</li></ol><p>ဒါက ဘဏ်မှငွေလွှဲခြင်းမဟုတ်ပါ။ Payment page က <strong>မိသားစုဝင်အသစ်ထည့်ရန်နေရာမဟုတ်ပါ</strong>။</p></section>
+  <section class="guide-block"><h3>Documents စနစ်တကျထားနည်း</h3><p>Document upload လုပ်ချိန် မှတ်မိလွယ်သောအမည်၊ Group၊ Tags၊ Expiry date ထည့်ပါ။ ဆိုင်ရာ Account/Bill ကို Linked record ဖြင့်ချိတ်ပါ။ Grid/List မှာ ဖြန့်ပြီးမှ Download၊ Encrypted copy၊ Edit၊ Trash ခလုတ်တွေသုံးပါ။ Download လုပ်ထားသော plaintext file ကို Lock က device ထဲမှ မဖျက်နိုင်ပါ။</p></section>
+  <section id="guideSafety" class="guide-block"><h3>Backup နဲ့ လုံခြုံရေးအလေ့အကျင့်</h3><ul><li>Master passphrase ကို အနည်းဆုံး ၁၆ လုံးထားပြီး account password များနဲ့ မတူပါစေနှင့်။</li><li>Password manager သို့မဟုတ် လုံခြုံသော offline နေရာမှာ မှတ်ထားပါ။ မေ့လျှင် Gmail reset ဖြင့် Vault ပြန်မဖွင့်နိုင်ပါ။</li><li>ပြောင်းလဲမှုများစွာမလုပ်မီ Encrypted backup ယူပါ။ Backup ထဲမှာ document file bytes အပြည့်မပါပါ။</li><li>Shared computer မှာ Password ပြပြီးနောက် Hide၊ အလုပ်ပြီးရင် Lock သို့ Sign out လုပ်ပါ။</li><li>Save ကြာလျှင် ထပ်ခါတလဲလဲမနှိပ်ဘဲ message စောင့်ပါ။ မသေချာလျှင် Refresh လုပ်ပြီး နောက်ဆုံး data စစ်ပါ။</li></ul></section>`;
+  help.append(update);update.querySelector('.guide-shortcuts').onclick=event=>{const button=event.target.closest('[data-guide-target]');if(button)document.getElementById(button.dataset.guideTarget)?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});};
+}

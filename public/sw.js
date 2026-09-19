@@ -1,4 +1,4 @@
-const CACHE = "family-vault-personal-shell-theme-1";
+const CACHE = "family-vault-personal-shell-v2-4";
 const SHELL = [
   "/",
   "/index.html",
@@ -14,9 +14,15 @@ const SHELL = [
   "/icon.svg",
   "/icon-192.png",
   "/icon-512.png",
-  '/view-switcher.js',
-  '/view-switcher.css',
-  '/soft-color-theme.css'
+  "/view-switcher.js",
+  "/view-switcher.css",
+  "/soft-color-theme.css",
+  "/view-modes-core.js",
+  "/view-modes.js",
+  "/view-modes-core.js",
+  "/view-modes.css",
+  "/settings-guide.js",
+  "/settings-guide.css",
 ];
 self.addEventListener("install", (e) =>
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))),
