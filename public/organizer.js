@@ -1,4 +1,69 @@
-export const defaultCategories=['Account','Phone','Internet','Mortgage','Utilities','Insurance','Subscription','Other'];
-export function categories(value){return [...new Set([...(Array.isArray(value.categories)?value.categories:defaultCategories),'Other',...value.records.map(r=>r.category).filter(Boolean)])];}
-export function organize(value,kind,action,name,oldName){if(!['add','rename','remove'].includes(action))throw Error('Invalid organizer action');if(!['group','category'].includes(kind))throw Error('Invalid organizer');const next=structuredClone(value),field=kind==='group'?'groups':'categories';next[field]=kind==='group'?[...next.groups]:categories(next);name=String(name||'').trim();if(action!=='remove'&&(!name||name.length>60))throw Error('အမည်ကို ၁ မှ ၆၀ စာလုံးအတွင်းရေးပါ။');if(action!=='remove'&&next[field].some(x=>x.toLocaleLowerCase()===name.toLocaleLowerCase()&&x!==oldName))throw Error('ဤအမည် ရှိပြီးသားဖြစ်သည်။');if(action==='add'){if(next[field].length>=100)throw Error('အမျိုးအစား ၁၀၀ ခုထက်မပိုရပါ။');next[field].push(name);}else{if(!next[field].includes(oldName))throw Error('မူလအမည် မရှိတော့ပါ။ Refresh လုပ်ပါ။');if(kind==='category'&&oldName==='Other')throw Error('Other ကို fallback အဖြစ်ထိန်းထားသည်။');next[field]=action==='rename'?next[field].map(x=>x===oldName?name:x):next[field].filter(x=>x!==oldName);for(const r of [...next.records,...(kind==='group'?next.documents:[])])if(r[kind]===oldName)r[kind]=action==='rename'?name:kind==='group'?'':'Other';}return next;}
-export function sortedRecords(records,order){return [...records].sort((a,b)=>order==='due'?(a.dueDate||'9999').localeCompare(b.dueDate||'9999'):order==='recent'?(b.updatedAt||'').localeCompare(a.updatedAt||''):a.name.localeCompare(b.name));}
+export const defaultCategories = [
+  "Account",
+  "Phone",
+  "Internet",
+  "Mortgage",
+  "Utilities",
+  "Insurance",
+  "Subscription",
+  "Other",
+];
+export function categories(value) {
+  return [
+    ...new Set([
+      ...(Array.isArray(value.categories)
+        ? value.categories
+        : defaultCategories),
+      "Other",
+      ...value.records.map((r) => r.category).filter(Boolean),
+    ]),
+  ];
+}
+export function organize(value, kind, action, name, oldName) {
+  if (!["add", "rename", "remove"].includes(action))
+    throw Error("Invalid organizer action");
+  if (!["group", "category"].includes(kind)) throw Error("Invalid organizer");
+  const next = structuredClone(value),
+    field = kind === "group" ? "groups" : "categories";
+  next[field] = kind === "group" ? [...next.groups] : categories(next);
+  name = String(name || "").trim();
+  if (action !== "remove" && (!name || name.length > 60))
+    throw Error("The name must be between 1 and 60 characters.");
+  if (
+    action !== "remove" &&
+    next[field].some(
+      (x) =>
+        x.toLocaleLowerCase() === name.toLocaleLowerCase() && x !== oldName,
+    )
+  )
+    throw Error("This name already exists.");
+  if (action === "add") {
+    if (next[field].length >= 100) throw Error("1. You cannot create more than 100 categories.");
+    next[field].push(name);
+  } else {
+    if (!next[field].includes(oldName))
+      throw Error("The original name does not exist. Please refresh the page.");
+    if (kind === "category" && oldName === "Other")
+      throw Error("Other is reserved as the fallback category.");
+    next[field] =
+      action === "rename"
+        ? next[field].map((x) => (x === oldName ? name : x))
+        : next[field].filter((x) => x !== oldName);
+    for (const r of [
+      ...next.records,
+      ...(kind === "group" ? next.documents : []),
+    ])
+      if (r[kind] === oldName)
+        r[kind] = action === "rename" ? name : kind === "group" ? "" : "Other";
+  }
+  return next;
+}
+export function sortedRecords(records, order) {
+  return [...records].sort((a, b) =>
+    order === "due"
+      ? (a.dueDate || "9999").localeCompare(b.dueDate || "9999")
+      : order === "recent"
+        ? (b.updatedAt || "").localeCompare(a.updatedAt || "")
+        : a.name.localeCompare(b.name),
+  );
+}

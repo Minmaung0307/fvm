@@ -1,5 +1,130 @@
 // One-time, local conversion only. No legacy endpoint is queried and no source file is deleted.
-export function convertLegacy(input){const x=input.data||input;if(!Array.isArray(x.accounts)||!Array.isArray(x.bills)||!Array.isArray(x.payments))throw Error('Expected accounts, bills and payments arrays');const ids=new Map(),warnings=[],records=[];for(const a of x.accounts){const encrypted=['encryptedUsername','encryptedPassword','encryptedPin','encryptedAccountNumber','encryptedNotes'].filter(k=>a[k]);if(encrypted.length)warnings.push(`${a.name||'Account'}: legacy encrypted fields cannot be decrypted automatically; preserve the original export.`);let previous=a.previous||a.previousProviders||[];if(typeof previous==='string'){try{previous=JSON.parse(previous);}catch{previous=[];}}const id=crypto.randomUUID();ids.set(a.id,id);records.push({id,recordType:'account',name:String(a.name||'Account'),category:(a.category==='Subscriptions'?'Subscription':a.category)||'Other',provider:a.provider||'',url:a.website||'',username:a.user||'',password:a.pass||'',pin:a.pin||'',currentPlan:a.currentPlan||'',email:a.email||'',accountNumber:a.no||'',memo:a.notes||'',status:['active','closed','archived'].includes(a.status)?a.status:'active',providerHistory:Array.isArray(previous)?previous.map(p=>`${p.date||''} — ${p.provider||''} — ${p.reason||''}`).join('\n'):'',group:'',tags:Array.isArray(a.tags)?a.tags.join(', '):a.tags||'',amount:0,frequency:'none',paymentStatus:'unpaid'});}
-for(const b of x.bills){const id=crypto.randomUUID();ids.set(b.id,id);if(b.encryptedDetails)warnings.push(`${b.billName||b.name}: encryptedDetails requires manual migration.`);records.push({id,recordType:'bill',name:String(b.billName||b.name||'Bill'),category:(b.category==='Subscriptions'?'Subscription':b.category)||'Other',provider:'',url:b.website||'',username:'',password:'',email:'',accountNumber:'',memo:b.notes||'',status:b.status==='active'||!b.status?'active':b.status==='paused'?'archived':'closed',providerHistory:'',tags:'',group:'',amount:Number(b.amount)||0,frequency:b.frequency==='quarterly'?'quarterly':b.frequency||'monthly',dueDate:date(b.nextDueDate||b.dueDate),paymentStatus:b.autoPay===true||b.autoPay==='true'?'autopay':'unpaid'});}
-const payments=x.payments.map(p=>({id:crypto.randomUUID(),recordId:ids.get(p.billId)||ids.get(p.accountId)||'',name:String(p.title||'Legacy payment'),date:date(p.paymentDate||p.date),amount:Number(p.amount)||0,memo:[p.confirmationNumber||p.conf,p.paymentMethod||p.method,p.receiptNote].filter(Boolean).join(' · ')}));const unlinked=payments.filter(p=>!p.recordId).length;if(unlinked)warnings.push(`${unlinked} payments have no linked record; history will display them under All records.`);return {records,payments,warnings};}
-function date(value){return value?String(value).slice(0,10):'';}
+export function convertLegacy(input) {
+  const x = input.data || input;
+  if (
+    !Array.isArray(x.accounts) ||
+    !Array.isArray(x.bills) ||
+    !Array.isArray(x.payments)
+  )
+    throw Error("Expected accounts, bills and payments arrays");
+  const ids = new Map(),
+    warnings = [],
+    records = [];
+  for (const a of x.accounts) {
+    const encrypted = [
+      "encryptedUsername",
+      "encryptedPassword",
+      "encryptedPin",
+      "encryptedAccountNumber",
+      "encryptedNotes",
+    ].filter((k) => a[k]);
+    if (encrypted.length)
+      warnings.push(
+        `${a.name || "Account"}: legacy encrypted fields cannot be decrypted automatically; preserve the original export.`,
+      );
+    let previous = a.previous || a.previousProviders || [];
+    if (typeof previous === "string") {
+      try {
+        previous = JSON.parse(previous);
+      } catch {
+        previous = [];
+      }
+    }
+    const id = crypto.randomUUID();
+    ids.set(a.id, id);
+    records.push({
+      id,
+      recordType: "account",
+      name: String(a.name || "Account"),
+      category:
+        (a.category === "Subscriptions" ? "Subscription" : a.category) ||
+        "Other",
+      provider: a.provider || "",
+      url: a.website || "",
+      username: a.user || "",
+      password: a.pass || "",
+      pin: a.pin || "",
+      currentPlan: a.currentPlan || "",
+      email: a.email || "",
+      accountNumber: a.no || "",
+      memo: a.notes || "",
+      status: ["active", "closed", "archived"].includes(a.status)
+        ? a.status
+        : "active",
+      providerHistory: Array.isArray(previous)
+        ? previous
+            .map(
+              (p) =>
+                `${p.date || ""} — ${p.provider || ""} — ${p.reason || ""}`,
+            )
+            .join("\n")
+        : "",
+      group: "",
+      tags: Array.isArray(a.tags) ? a.tags.join(", ") : a.tags || "",
+      amount: 0,
+      frequency: "none",
+      paymentStatus: "unpaid",
+    });
+  }
+  for (const b of x.bills) {
+    const id = crypto.randomUUID();
+    ids.set(b.id, id);
+    if (b.encryptedDetails)
+      warnings.push(
+        `${b.billName || b.name}: encryptedDetails requires manual migration.`,
+      );
+    records.push({
+      id,
+      recordType: "bill",
+      name: String(b.billName || b.name || "Bill"),
+      category:
+        (b.category === "Subscriptions" ? "Subscription" : b.category) ||
+        "Other",
+      provider: "",
+      url: b.website || "",
+      username: "",
+      password: "",
+      email: "",
+      accountNumber: "",
+      memo: b.notes || "",
+      status:
+        b.status === "active" || !b.status
+          ? "active"
+          : b.status === "paused"
+            ? "archived"
+            : "closed",
+      providerHistory: "",
+      tags: "",
+      group: "",
+      amount: Number(b.amount) || 0,
+      frequency:
+        b.frequency === "quarterly" ? "quarterly" : b.frequency || "monthly",
+      dueDate: date(b.nextDueDate || b.dueDate),
+      paymentStatus:
+        b.autoPay === true || b.autoPay === "true" ? "autopay" : "unpaid",
+    });
+  }
+  const payments = x.payments.map((p) => ({
+    id: crypto.randomUUID(),
+    recordId: ids.get(p.billId) || ids.get(p.accountId) || "",
+    name: String(p.title || "Legacy payment"),
+    date: date(p.paymentDate || p.date),
+    amount: Number(p.amount) || 0,
+    memo: [
+      p.confirmationNumber || p.conf,
+      p.paymentMethod || p.method,
+      p.receiptNote,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  }));
+  const unlinked = payments.filter((p) => !p.recordId).length;
+  if (unlinked)
+    warnings.push(
+      `${unlinked} payments have no linked record; history will display them under All records.`,
+    );
+  return { records, payments, warnings };
+}
+function date(value) {
+  return value ? String(value).slice(0, 10) : "";
+}

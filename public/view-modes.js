@@ -46,7 +46,8 @@ if(content&&heading){
     }
     const glance=document.createElement('p');glance.className='compact-glance';
     const directParagraphs=[...card.children].filter(node=>node.tagName==='P'&&!node.classList.contains('compact-glance'));
-    glance.textContent=directParagraphs.map(p=>p.textContent.trim()).filter(Boolean).slice(0,2).join(' · ')||'အသေးစိတ်ကြည့်ရန် နှိပ်ပါ';
+    const accountIdentity=card.querySelector(':scope > .account-identity')?.textContent.trim();
+    glance.textContent=accountIdentity||directParagraphs.map(p=>p.textContent.trim()).filter(Boolean).slice(0,2).join(' · ')||'အသေးစိတ်ကြည့်ရန် နှိပ်ပါ';
     const title=card.querySelector(':scope > h3');
     if(title)title.insertAdjacentElement('afterend',glance);else card.prepend(glance);
     card.setAttribute('aria-label',(title?.textContent||'Record')+' အသေးစိတ်ကြည့်ရန်');

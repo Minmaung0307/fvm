@@ -9,8 +9,15 @@ import {
   inMemoryPersistence,
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
 import { tips, guideMarkup } from "./guide.js";
-import { addExamples } from "./samples.js";
+import { addExamples, resetExamples } from "./samples.js";
 import { categories, organize, sortedRecords } from "./organizer.js";
+import { PAGE_SIZES, paginate, pageTokens } from "./pagination.js";
+import {
+  CALENDAR_FILTERS,
+  calendarEventStatus,
+  calendarKindLabel,
+  filterCalendarEvents,
+} from "./calendar.js";
 import { config } from "./config.js";
 import {
   deriveKey,
@@ -56,7 +63,18 @@ let auth,
   previewDocumentId = "",
   previewUrl = "",
   thumbnailUrls = new Set(),
-  quickFilter = "all";
+  quickFilter = "all",
+  recordPage = 1,
+  documentPage = 1,
+  calendarFilter = "all",
+  pageSize = (() => {
+    try {
+      const saved = Number(localStorage.getItem("family-vault-page-size"));
+      return PAGE_SIZES.includes(saved) ? saved : 20;
+    } catch {
+      return 20;
+    }
+  })();
 const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -68,6 +86,19 @@ const money = (n) =>
   }).format(Number(n) || 0);
 function message(s) {
   $("#message").textContent = s;
+}
+function paginationMarkup(pageData, collection) {
+  if (!pageData.total) return "";
+  const pageButton = (page, label, current = false, disabled = false) =>
+    `<button type="button" data-action="page" data-collection="${collection}" data-page="${page}"${current ? ' aria-current="page"' : ""}${disabled ? ' aria-disabled="true"' : ""}>${label}</button>`;
+  const numbers = pageTokens(pageData.page, pageData.pages)
+    .map((token) =>
+      token === "…"
+        ? '<span class="page-ellipsis" aria-hidden="true">…</span>'
+        : pageButton(token, token, token === pageData.page),
+    )
+    .join("");
+  return `<nav class="pagination" aria-label="${collection === "records" ? "Records" : "Documents"} pages"><span class="page-summary">Showing ${pageData.start}–${pageData.end} of ${pageData.total}</span><label class="page-size">Show <select data-page-size="${collection}" aria-label="Items per page">${PAGE_SIZES.map((size) => `<option value="${size}"${size === pageData.size ? " selected" : ""}>${size}</option>`).join("")}</select></label><div class="page-buttons">${pageButton(pageData.page - 1, "← Previous", false, pageData.page === 1)}<span class="desktop-page-numbers">${numbers}</span><span class="mobile-page-number">Page ${pageData.page} of ${pageData.pages}</span>${pageButton(pageData.page + 1, "Next →", false, pageData.page === pageData.pages)}</div></nav>`;
 }
 function lock() {
   generation++;
@@ -357,7 +388,9 @@ function render() {
     .join("");
   renderQuickFilters();
   const records = selected(),
+    recordPages = paginate(records, recordPage, pageSize),
     ids = new Set(records.map((r) => r.id));
+  recordPage = recordPages.page;
   $("#collectionTitle").textContent = {
     records: "Accounts & bills",
     documents: "Important Docs",
@@ -381,7 +414,7 @@ function render() {
   if (view === "documents") renderDocuments();
   if (view === "records")
     $("#content").innerHTML =
-      `<div class="cards">${records.map((r) => `<article class="card ${r.isExample ? "example-card" : ""}"><div class="record-icon" aria-hidden="true">${r.recordType === "bill" ? "↗" : "◈"}</div>${r.isExample ? '<span class="example-label">နမူနာ</span>' : ""}<span class="tag">${E(r.category)} · ${E(r.group || "Ungrouped")} · ${E(r.status)}</span><h3>${r.favorite ? "★ " : ""}${E(r.name)}</h3><p class="muted">${E(r.tags || "")}</p><p class="muted">${E(r.provider || "—")}${r.recordType === "bill" ? ` · ${E(cycleLabels[r.frequency] || r.frequency)}` : ""}</p>${r.recordType === "bill" ? `<strong class="bill-amount">${money(r.amount)}<small> / ${E(cycleLabels[r.frequency] || r.frequency)}</small></strong>` : `<p class="muted">Account record</p>${r.accountState && r.accountState !== "not-applicable" ? `<span class="account-state">${E(cycleLabels[r.accountState] || r.accountState)}</span>` : ""}`}<dl>${r.recordType === "bill" ? `<dt>Due</dt><dd>${E(r.dueDate || "—")}</dd><dt>Renewal</dt><dd>${E(r.renewalDate || "—")}</dd><dt>Payment</dt><dd>${E(r.paymentStatus || "unpaid")}</dd>` : `<dt>Renewal</dt><dd>${E(r.renewalDate || "—")}</dd><dt>Expiry</dt><dd>${E(r.expiryDate || "—")}</dd>`}</dl><details><summary>Account details</summary><dl>${["username", "email", "accountNumber", "currentPlan", "url", "expiryDate", "memo", "providerHistory"].map((k) => `<dt>${E(k)}</dt><dd>${E(r[k] || "—")}</dd>`).join("")}</dl><button data-action="reveal" data-id="${E(r.id)}">Show password</button><span class="password"></span></details><button data-action="favorite" data-id="${E(r.id)}">${r.favorite ? "★" : "☆"}</button><button data-action="edit" data-id="${E(r.id)}">Edit</button>${r.recordType === "bill" ? `<button data-action="pay" data-id="${E(r.id)}">Record payment</button>` : ""}<button data-action="duplicate" data-id="${E(r.id)}">Duplicate</button><button data-action="deleteRecord" class="danger" data-id="${E(r.id)}">Delete</button><button data-action="archive" data-id="${E(r.id)}">${r.status === "archived" ? "Activate" : "Archive"}</button></article>`).join("")}</div>`;
+      `<div class="cards">${recordPages.items.map((r) => `<article class="card ${r.isExample ? "example-card" : ""}"><div class="record-icon" aria-hidden="true">${r.recordType === "bill" ? "↗" : "◈"}</div>${r.isExample ? '<span class="example-label">Demo</span>' : ""}<span class="tag">${E(r.category)} · ${E(r.group || "Ungrouped")} · ${E(r.status)}</span><h3>${r.favorite ? "★ " : ""}${E(r.name)}</h3><p class="muted">${E(r.tags || "")}</p><p class="muted">${E(r.provider || "—")}${r.recordType === "bill" ? ` · ${E(cycleLabels[r.frequency] || r.frequency)}` : ""}</p>${r.recordType === "bill" ? `<strong class="bill-amount">${money(r.amount)}<small> / ${E(cycleLabels[r.frequency] || r.frequency)}</small></strong>` : `<p class="muted account-identity">${E(r.username || r.email || "No username or email")}</p><p class="muted">Account record</p>${r.accountState && r.accountState !== "not-applicable" ? `<span class="account-state">${E(cycleLabels[r.accountState] || r.accountState)}</span>` : ""}`}<dl>${r.recordType === "bill" ? `<dt>Due</dt><dd>${E(r.dueDate || "—")}</dd><dt>Renewal</dt><dd>${E(r.renewalDate || "—")}</dd><dt>Payment</dt><dd>${E(r.paymentStatus || "unpaid")}</dd>` : `<dt>Renewal</dt><dd>${E(r.renewalDate || "—")}</dd><dt>Expiry</dt><dd>${E(r.expiryDate || "—")}</dd>`}</dl><details><summary>Account details</summary><dl>${["username", "email", "accountNumber", "currentPlan", "url", "expiryDate", "memo", "providerHistory"].map((k) => `<dt>${E(k)}</dt><dd>${E(r[k] || "—")}</dd>`).join("")}</dl><button data-action="reveal" data-id="${E(r.id)}">Show password</button><span class="password"></span></details><button data-action="favorite" data-id="${E(r.id)}">${r.favorite ? "★" : "☆"}</button><button data-action="edit" data-id="${E(r.id)}">Edit</button>${r.recordType === "bill" ? `<button data-action="pay" data-id="${E(r.id)}">Record payment</button>` : ""}<button data-action="duplicate" data-id="${E(r.id)}">Duplicate</button><button data-action="deleteRecord" class="danger" data-id="${E(r.id)}">Delete</button><button data-action="archive" data-id="${E(r.id)}">${r.status === "archived" ? "Activate" : "Archive"}</button></article>`).join("")}</div>${paginationMarkup(recordPages, "records")}`;
   if (view === "calendar") renderCalendar(all, ids);
   if (view === "history")
     $("#content").innerHTML = data.payments
@@ -399,7 +432,8 @@ function render() {
     $("#content").innerHTML =
       '<div class="empty-state"><span aria-hidden="true">◈</span><h3>Save in one place.</h3><p>No records or No filter criteria match.</p><p>You can add new Accounts or Bills.</p><button data-action="emptyAdd">＋ Account</button></div>';
   attachHelp();
-  checkAlerts();
+  updateBrowserAlertButton();
+  void checkAlerts();
 }
 const fields = [
   ["recordType", "Record type", "select", ["account", "bill"]],
@@ -632,7 +666,7 @@ function edit(id, type = "account", draft) {
     if (el) el.value = v;
   }
   $("#delete").hidden = !id;
-  $("#editorTitle").textContent = id ? "Edit record" : "အသစ်ထည့်ရန်";
+  $("#editorTitle").textContent = id ? "Edit record" : "Add new record";
   updateAccountStateOptions();
   setRecordSections();
   $("#editor").showModal();
@@ -647,6 +681,7 @@ $("#recordForm").onsubmit = (e) => {
     const old = data.records.find((x) => x.id === r.id);
     r.favorite = old?.favorite || false;
     r.isExample = false;
+    delete r.sampleKey;
     r.createdAt = old?.createdAt || new Date().toISOString();
     r.updatedAt = new Date().toISOString();
     const next = structuredClone(data);
@@ -678,8 +713,25 @@ $("#delete").onclick = () => deleteRecord($("#recordForm").elements.id.value);
 $("#content").onclick = (e) => {
   const b = e.target.closest("button[data-action]");
   if (!b) return;
+  if (b.dataset.action === "page") {
+    if (b.getAttribute("aria-disabled") === "true") return;
+    const requested = Number(b.dataset.page);
+    if (b.dataset.collection === "documents") documentPage = requested;
+    else recordPage = requested;
+    render();
+    requestAnimationFrame(() =>
+      $(".collection-heading")?.scrollIntoView({
+        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+        block: "start",
+      }),
+    );
+    return;
+  }
   if (b.dataset.action === "docFilter") {
     documentTypeFilter = b.dataset.kind;
+    documentPage = 1;
     renderDocuments();
     return;
   }
@@ -726,6 +778,19 @@ $("#content").onclick = (e) => {
     await commit(next);
   });
 };
+$("#content").addEventListener("change", (e) => {
+  const select = e.target.closest("select[data-page-size]");
+  if (!select) return;
+  const requested = Number(select.value);
+  if (!PAGE_SIZES.includes(requested)) return;
+  pageSize = requested;
+  recordPage = 1;
+  documentPage = 1;
+  try {
+    localStorage.setItem("family-vault-page-size", String(pageSize));
+  } catch {}
+  render();
+});
 $("#cancel").onclick = () => {
   $("#editor").close();
   $("#recordForm").reset();
@@ -761,7 +826,11 @@ for (const s of [
   "#recordType",
   "#sortOrder",
 ])
-  $(s).addEventListener("input", render);
+  $(s).addEventListener("input", () => {
+    recordPage = 1;
+    documentPage = 1;
+    render();
+  });
 document.querySelectorAll("nav button").forEach(
   (b) =>
     (b.onclick = () => {
@@ -902,33 +971,84 @@ $("#restore").onchange = (e) =>
       await ensureDocumentKey();
     }
   });
-function checkAlerts() {
+function updateBrowserAlertButton() {
+  const button = $("#notifications");
+  if (!button) return;
+  if (!("Notification" in window)) {
+    button.textContent = "Browser alerts: Unavailable";
+    return;
+  }
+  button.textContent =
+    Notification.permission === "granted"
+      ? "Browser alerts: On"
+      : Notification.permission === "denied"
+        ? "Browser alerts: Blocked"
+        : "Enable browser alerts";
+}
+async function showBrowserNotification(title, options) {
+  if ("serviceWorker" in navigator) {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(title, options);
+      return;
+    } catch {}
+  }
+  new Notification(title, options);
+}
+async function checkAlerts() {
   if (
     !key ||
     !("Notification" in window) ||
     Notification.permission !== "granted"
   )
-    return;
+    return 0;
   const now = today();
-  for (const e of allEvents(data).filter((e) => e.date <= now)) {
-    const id = `${e.id}:${e.kind}:${e.date}:${now}`;
-    if (!notified.has(id)) {
-      new Notification("Family Vault reminder", {
-        body: "You have pending dues, renewals, or expirations to review in your vault.",
-        icon: "/icon.svg",
-      });
-      notified.add(id);
-    }
+  const pending = allEvents(data).filter((event) => event.date <= now);
+  if (!pending.length) return 0;
+  const id = `summary:${now}:${pending.map((event) => `${event.id}:${event.kind}:${event.date}`).join("|")}`;
+  if (!notified.has(id)) {
+    const names = pending
+      .slice(0, 2)
+      .map((event) => event.name)
+      .join(", ");
+    await showBrowserNotification("Family Vault reminder", {
+      body: `${pending.length} item${pending.length === 1 ? "" : "s"} need attention${names ? `: ${names}` : ""}.`,
+      icon: "/icon.svg",
+      tag: "family-vault-due-summary",
+    });
+    notified.add(id);
   }
+  return pending.length;
 }
 $("#notifications").onclick = () =>
   run(async () => {
     if (!("Notification" in window))
       throw Error("Browser notifications unavailable; use email reminders.");
-    await Notification.requestPermission();
-    checkAlerts();
+    let permission = Notification.permission;
+    if (permission === "default")
+      permission = await Notification.requestPermission();
+    updateBrowserAlertButton();
+    if (permission === "denied") {
+      message(
+        "Browser alerts are blocked. Open this site's browser settings, allow Notifications, then try again.",
+      );
+      return;
+    }
+    if (permission !== "granted") {
+      message("Browser alert permission was not granted.");
+      return;
+    }
+    const pending = await checkAlerts();
+    if (!pending)
+      await showBrowserNotification("Family Vault alerts are on", {
+        body: "No due or overdue items need attention right now.",
+        icon: "/icon.svg",
+        tag: "family-vault-alert-test",
+      });
     message(
-      "Browser alerts only work while the app is open. Email reminders work in the background.",
+      pending
+        ? `Browser alerts are on. ${pending} due or overdue item${pending === 1 ? "" : "s"} need attention.`
+        : "Browser alerts are on. A test notification was sent. Alerts work while the app is open; email reminders work in the background.",
     );
   });
 for (const event of ["pointerdown", "keydown", "touchstart"])
@@ -961,7 +1081,7 @@ try {
         const loaded = await api("load");
         $("#confirmLabel").hidden = !!loaded.box;
         $("#setupHint").textContent = loaded.box
-          ? "သင့် personal vault passphrase ဖြင့်ဖွင့်ပါ။"
+          ? "Open with your personal vault passphrase."
           : "Initial Setup — Set a new private passphrase.";
         $("#login").hidden = true;
         $("#unlockForm").hidden = false;
@@ -1110,7 +1230,9 @@ function renderDocuments() {
     visible =
       documentTypeFilter === "all" || documentTypeFilter === "trash"
         ? matched
-        : matched.filter((d) => documentKind(d) === documentTypeFilter);
+        : matched.filter((d) => documentKind(d) === documentTypeFilter),
+    documentPages = paginate(visible, documentPage, pageSize);
+  documentPage = documentPages.page;
   $("#resultCount").textContent = `${visible.length} documents`;
   const kinds = [
     "all",
@@ -1124,14 +1246,14 @@ function renderDocuments() {
   ];
   const expired = trash.filter((d) => trashRetention(d).expired).length;
   $("#content").innerHTML =
-    `<p class="muted">File contents and original filenames are encrypted. Decryption happens strictly in browser memory only when opened for preview. Items in the Trash have a 30-day retention period during which they can be restored.</p><div class="document-type-bar" role="group" aria-label="Document type">${kinds.map((kind) => `<button type="button" data-action="docFilter" data-kind="${kind}" aria-pressed="${documentTypeFilter === kind}">${documentKinds[kind][1]} ${documentKinds[kind][0]} · ${kind === "trash" ? trash.length : kind === "all" ? regular.length : regular.filter((d) => documentKind(d) === kind).length}</button>`).join("")}${documentTypeFilter === "trash" && expired ? `<button type="button" class="danger" data-action="docPurgeExpired">Delete expired · ${expired}</button>` : ""}</div><div class="cards">${visible
+    `<p class="muted">File contents and original filenames are encrypted. Decryption happens strictly in browser memory only when opened for preview. Items in the Trash have a 30-day retention period during which they can be restored.</p><div class="document-type-bar" role="group" aria-label="Document type">${kinds.map((kind) => `<button type="button" data-action="docFilter" data-kind="${kind}" aria-pressed="${documentTypeFilter === kind}">${documentKinds[kind][1]} ${documentKinds[kind][0]} · ${kind === "trash" ? trash.length : kind === "all" ? regular.length : regular.filter((d) => documentKind(d) === kind).length}</button>`).join("")}${documentTypeFilter === "trash" && expired ? `<button type="button" class="danger" data-action="docPurgeExpired">Delete expired · ${expired}</button>` : ""}</div><div class="cards">${documentPages.items
       .map((d) => {
         const kind = documentKind(d),
           trashed = d.status === "trashed",
           retention = trashed ? trashRetention(d) : null;
         return `<article class="card doc-card doc-kind-${kind} ${trashed ? "doc-trashed" : ""}"><span class="tag">${E(d.group || "Ungrouped")} · ${E(d.status)}</span>${trashed ? `<span class="trash-retention ${retention.expired ? "expired" : ""}">${retention.expired ? "Expired — ready to delete" : retention.days + " days to restore"}</span>` : ""}<button type="button" class="doc-preview-trigger" data-action="docPreview" data-id="${E(d.id)}" aria-label="${E(d.name)} preview"><span class="doc-thumbnail" data-thumbnail-id="${E(d.id)}"><span class="doc-file-icon">${documentIcon(kind)}</span><span class="doc-file-type">${E(documentKinds[kind][0])}</span></span></button><h3>${d.favorite ? "★ " : ""}${E(d.name)}</h3><p>${E(d.originalName)} · ${(d.size / 1024).toFixed(0)} KB</p><p class="muted">${E(d.tags)}<br>Expiry: ${E(d.expiryDate || "—")}<br>${E(d.memo)}</p>${trashed ? `<p class="doc-trash-note">Trash date: ${E(String(d.deletedAt || "").slice(0, 10) || "—")}</p>` : ""}${d.recordId ? `<p>Linked: ${E(data.records.find((r) => r.id === d.recordId)?.name || "Deleted record")}</p>` : ""}${trashed ? `<button data-action="docRestore" data-id="${E(d.id)}">Restore</button><button data-action="docPermanent" data-id="${E(d.id)}" class="danger">Delete permanently</button>` : `<button data-action="docDownload" data-id="${E(d.id)}">Download</button><button data-action="docEncrypted" data-id="${E(d.id)}">Encrypted copy</button><button data-action="edit" data-id="${E(d.id)}">Edit</button><button data-action="docFavorite" data-id="${E(d.id)}">${d.favorite ? "★" : "☆"}</button><button data-action="docDelete" data-id="${E(d.id)}" class="danger">Move to Trash</button>`}</article>`;
       })
-      .join("")}</div>`;
+      .join("")}</div>${paginationMarkup(documentPages, "documents")}`;
   loadImageThumbnails();
 }
 function loadImageThumbnails() {
@@ -1524,31 +1646,57 @@ let calendarDate = new Date();
 function renderCalendar(all, ids) {
   const y = calendarDate.getFullYear(),
     m = calendarDate.getMonth(),
+    currentDate = today(),
     prefix = `${y}-${String(m + 1).padStart(2, "0")}-`;
   const docIds = new Set(
     data.documents.filter(matchesDocument).map((d) => d.id),
   );
   const selectedEvents = all.filter((e) => ids.has(e.id) || docIds.has(e.id));
+  const listEvents = filterCalendarEvents(
+    selectedEvents,
+    calendarFilter,
+    currentDate,
+  );
+  const counts = Object.fromEntries(
+    CALENDAR_FILTERS.map((filter) => [
+      filter,
+      filterCalendarEvents(selectedEvents, filter, currentDate).length,
+    ]),
+  );
   const offset = new Date(y, m, 1).getDay(),
     days = new Date(y, m + 1, 0).getDate();
+  const filterLabels = {
+    all: "All alerts",
+    overdue: "Overdue",
+    today: "Due today",
+    upcoming: "Upcoming",
+  };
   $("#content").innerHTML =
-    `<div class="heading"><h2>${E(calendarDate.toLocaleDateString(undefined, { month: "long", year: "numeric" }))}</h2><div><button data-calendar="-1">◀</button><button data-calendar="0">Today</button><button data-calendar="1">▶</button></div></div><div class="calendar-grid">${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => `<div class="day-name">${d}</div>`).join("")}${'<div class="day empty"></div>'.repeat(offset)}${Array.from(
+    `<section class="calendar-help"><strong>How due dates work</strong><p>Recording a recurring payment moves its due date to the next billing cycle. A paid one-time due disappears. Renewal and expiry alerts remain until you update their dates or archive/close the record.</p></section><div class="calendar-heading"><div><span class="eyebrow">CALENDAR</span><h2>${E(calendarDate.toLocaleDateString(undefined, { month: "long", year: "numeric" }))}</h2></div><div class="calendar-navigation" role="group" aria-label="Calendar month"><button type="button" data-calendar="-1" aria-label="Previous month">← Previous</button><button type="button" data-calendar="0">Today</button><button type="button" data-calendar="1" aria-label="Next month">Next →</button></div></div><div class="calendar-summary">${["overdue", "today", "upcoming"].map((status) => `<button type="button" data-calendar-filter="${status}" class="calendar-stat ${status}" aria-pressed="${calendarFilter === status}"><span>${E(filterLabels[status])}</span><strong>${counts[status]}</strong></button>`).join("")}</div><div class="calendar-grid">${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => `<div class="day-name">${d}</div>`).join("")}${'<div class="day empty"></div>'.repeat(offset)}${Array.from(
       { length: days },
       (_, i) => {
         const date = prefix + String(i + 1).padStart(2, "0");
-        return `<div class="day ${date === today() ? "today" : ""}"><strong>${i + 1}</strong>${selectedEvents
+        return `<div class="day ${date === currentDate ? "today" : ""}"><strong>${i + 1}</strong>${selectedEvents
           .filter((e) => e.date === date)
           .map(
             (e) =>
-              `<button data-action="edit" data-id="${E(e.id)}">${E(e.name)}<small>${E(e.kind)}</small></button>`,
+              `<button type="button" class="calendar-day-event ${calendarEventStatus(e, currentDate)}" data-action="edit" data-id="${E(e.id)}" title="Open ${E(e.name)}"><span>${E(e.name)}</span><small>${E(calendarKindLabel(e.kind))}</small></button>`,
           )
           .join("")}</div>`;
       },
-    ).join(
-      "",
-    )}</div><h3>All due / renewal / expiry alerts</h3>${selectedEvents.map((e) => `<div class="event ${e.date < today() ? "overdue" : ""}"><strong>${E(e.date)}</strong><span>${E(e.name)} — ${E(e.kind)}</span><button data-action="edit" data-id="${E(e.id)}">Open</button></div>`).join("")}`;
+    ).join("")}</div><div class="calendar-list-heading"><div><h3>${E(filterLabels[calendarFilter])}</h3><p>${listEvents.length} of ${selectedEvents.length} alerts</p></div><div class="calendar-filter-bar" role="group" aria-label="Filter alerts">${CALENDAR_FILTERS.map((filter) => `<button type="button" data-calendar-filter="${filter}" aria-pressed="${calendarFilter === filter}">${E(filterLabels[filter])} <span>${counts[filter]}</span></button>`).join("")}</div></div><div class="calendar-events">${listEvents.length ? listEvents.map((e) => {
+      const status = calendarEventStatus(e, currentDate);
+      return `<div class="event calendar-event-row ${status}"><time datetime="${E(e.date)}">${E(e.date)}</time><span><strong>${E(e.name)}</strong><small>${E(calendarKindLabel(e.kind))} · ${E(status === "overdue" ? "Needs attention" : status === "today" ? "Today" : "Upcoming")}</small></span><button type="button" data-action="edit" data-id="${E(e.id)}">Open</button></div>`;
+    }).join("") : '<div class="calendar-empty"><span aria-hidden="true">✓</span><strong>No alerts in this view</strong><p>Choose another filter or add a due, renewal, or expiry date.</p></div>'}</div>`;
 }
 $("#content").addEventListener("click", (e) => {
+  const filter = e.target.closest("[data-calendar-filter]");
+  if (filter) {
+    if (CALENDAR_FILTERS.includes(filter.dataset.calendarFilter))
+      calendarFilter = filter.dataset.calendarFilter;
+    render();
+    return;
+  }
   const b = e.target.closest("[data-calendar]");
   if (!b) return;
   const delta = Number(b.dataset.calendar);
@@ -1609,9 +1757,9 @@ function addSampleRecords() {
     message("Unlock the Vault before adding sample records.");
     return;
   }
-  $("#helpDialog").close();
+  if ($("#helpDialog").open) $("#helpDialog").close();
   run(async () => {
-    await commit(addExamples(data, today()));
+    await commit(resetExamples(data, today()));
     view = "records";
     quickFilter = "all";
     document
@@ -1628,7 +1776,7 @@ function addSampleRecords() {
     $("#status").value = "active";
     render();
     message(
-      "Three sample records have been added. You can customize them with your own information using Edit and Save.",
+      "Three fresh sample records have been added. Your real records were not changed. You can customize the samples using Edit and Save.",
     );
   });
 }
@@ -1650,10 +1798,13 @@ $("#quickFilters").onclick = (e) => {
   const button = e.target.closest("[data-quick-filter]");
   if (!button) return;
   quickFilter = button.dataset.quickFilter;
+  recordPage = 1;
   render();
 };
 $("#resetFilters").onclick = () => {
   quickFilter = "all";
+  recordPage = 1;
+  documentPage = 1;
   $("#search").value = "";
   for (const selector of [
     "#recordType",
