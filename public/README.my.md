@@ -1,66 +1,46 @@
-# Family Vault Interface v2.4 Update
+# ၆ လတစ်ကြိမ် Billing Cycle ထည့်နည်း
 
-ဒီ ZIP က v2.2 frontend အပေါ် သုံးရန်ဖြစ်ပြီး v2.3 Normal/Grid/List ကိုပါ အပြည့်ထည့်ထားပါတယ်။ `config.js`၊ Apps Script နဲ့ မူလ `public` folder ကို မဖျက်ပါနှင့်။
+`Quarterly` သည် ၃ လတစ်ကြိမ်ဖြစ်သည်။ ဒီ update က `6 months (Semiannual)` option ထည့်ပေးသည်။
 
-## အသစ်ပါဝင်တာများ
+- Bill amount မှာ ၆ လတစ်ကြိမ်တကယ်ပေးရသော စုစုပေါင်းပမာဏထည့်ပါ။
+- Monthly estimate တွင် amount ÷ 6 ဖြင့်တွက်မည်။
+- Record payment လုပ်လျှင် နောက် due date ကို ၆ လရွှေ့မည်။ လကုန်ရက်မရှိလျှင် ထိုလ၏နောက်ဆုံးရက်သို့ ချိန်မည်။
+- ရှိပြီးသား bills/data ကို မပြောင်းပါ။ လိုသော bill ကို Edit လုပ်ပြီး cycle အသစ်ရွေးပါ။
 
-- Normal / Compact Grid / List သုံးမျိုး၊ Accounts & bills နှင့် Documents နှစ်ခုလုံး။
-- Compact card/row ကို နှိပ် သို့ Enter/Space နှိပ်မှ card အပြည့်ဖြန့်ခြင်း။
-- Category/Group အမည်အသစ်များကိုပါ တည်ငြိမ်သောအရောင် badge အလိုအလျောက်ပေးခြင်း။
-- Payments empty page တွင် မှားနေသော `+ Account အသစ်` ဖယ်ပြီး Record payment လမ်းညွှန်မှန်ပြခြင်း။
-- Settings ကို Summary၊ Display၊ Color legend၊ Groups/Categories၊ Alerts၊ Security/Storage အပိုင်းခွဲခြင်း။
-- Group/Category များလာလျှင် Settings ထဲ အမည်ရိုက်ရှာနိုင်ခြင်း၊ အသုံးမရှိသေးသော 0-item အမည်ကို ဖျော့ပြခြင်း။
-- Settings မှ Normal/Grid/List ရွေးနိုင်ခြင်း၊ Backup/Restore၊ Browser alerts ကို လွယ်ကူစွာသုံးနိုင်ခြင်း။
-- `? အသုံးပြုနည်း` တွင် view modes၊ badge colors၊ payments၊ documents၊ backup/security လမ်းညွှန်အသစ်။
+## လက်ရှိပြင်ထားသော project မပျက်စေသည့်နည်း
 
-## ထည့်နည်း
-
-၁။ ZIP ထဲက ဖိုင် ၅ ခုကို project ၏ `public` folder ထဲထည့်ပါ။ အမည်တူ v2.3 ဖိုင်ရှိလျှင် ဒီ version ဖြင့် အစားထိုးပါ။
-
-- `view-modes.js`
-- `view-modes-core.js`
-- `view-modes.css`
-- `settings-guide.js`
-- `settings-guide.css`
-
-၂။ ယခင် `view-switcher.js` / `view-switcher.css` ကို ချိတ်ထားသေးလျှင် `index.html` ထဲက ယင်း `<script>` / `<link>` နှစ်ကြောင်းကိုဖယ်ပါ။
-
-၃။ `public/index.html` ထဲ `</head>` မတိုင်မီ ထည့်ပါ။ Soft Color Theme သုံးထားလျှင် အဲဒီ theme link ၏အောက်မှာထားပါ။
-
-```html
-<link rel="stylesheet" href="/view-modes.css">
-<link rel="stylesheet" href="/settings-guide.css">
-```
-
-၄။ `</body>` မတိုင်မီရှိသော `app.js` စာကြောင်း၏အောက်မှာ ထည့်ပါ။
-
-```html
-<script type="module" src="/view-modes.js"></script>
-<script type="module" src="/settings-guide.js"></script>
-```
-
-Script အစဉ်သည် app.js → view-modes.js → settings-guide.js ဖြစ်ရမည်။
-
-၅။ `public/sw.js` ရဲ့ CACHE အမည်ကို အသစ်ပြောင်းပါ။
-
-```js
-const CACHE='family-vault-personal-shell-v2-4';
-```
-
-SHELL array ထဲ ဖိုင် ၅ ခုလုံး ထည့်ပါ။ ရှိပြီးသားစာရင်းကို မဖျက်ပါနှင့်။
-
-```js
-'/view-modes.js','/view-modes-core.js','/view-modes.css','/settings-guide.js','/settings-guide.css'
-```
-
-၆။ Deploy လုပ်ပါ။
+၁။ ZIP ထဲက `add-semiannual.mjs` ကို မိမိ project root folder ထဲထည့်ပါ။ `public` folder နဲ့ တစ်ဆင့်တည်းဖြစ်ရမည်။
+၂။ VS Code Terminal ကို project root မှာဖွင့်ပြီး run ပါ။
 
 ```bash
+node add-semiannual.mjs
+```
+
+Script က လိုအပ်သောနေရာအားလုံးတွေ့မှသာ ဖိုင်ကိုပြင်သည်။ ဖိုင်တစ်ခုစီ၏ မူလ copy ကို အောက်ပါအမည်ဖြင့်ထားပေးသည်။
+
+- `public/app.js.before-semiannual`
+- `public/vault.js.before-semiannual`
+- `public/guide.js.before-semiannual`
+
+`semiannual ပါပြီးသား` ဟုပြလျှင် နောက်တစ်ကြိမ် ထပ်မပြင်ပါ။ Code မကိုက်လျှင် မူလဖိုင်ကို မပြင်ဘဲ error ပြပြီးရပ်သည်။
+
+၃။ `public/sw.js` ထဲ CACHE အမည်ကို အသစ်ပြောင်းပါ။ ဥပမာ:
+
+```js
+const CACHE='family-vault-personal-shell-v2-5';
+```
+
+၄။ Project မှာ tests ရှိလျှင် run ပါ၊ ပြီးမှ deploy လုပ်ပါ။
+
+```bash
+npm test
 npx firebase-tools deploy --only hosting
 ```
 
-Browser/PWA ကို reload လုပ်ပါ။ Cache ဟောင်းဆက်မြင်ရလျှင် tabs/PWA အားလုံးပိတ်ပြီး ပြန်ဖွင့်ပါ။ Hard refresh လုပ်နိုင်ပါသည်။
+၅။ Browser/PWA tabs အားလုံးပိတ်ပြီး ပြန်ဖွင့်ပါ။ Bill ကို Edit → Billing cycle တွင် `6 months (Semiannual)` ပေါ်ကြောင်းစစ်ပါ။ စမ်းသပ် bill တစ်ခုဖြင့် Record payment လုပ်ပြီး due date ၆ လရွှေ့ကြောင်း စစ်ပါ။
 
-## မပြောင်းသောအရာများ
+## ပြန်ဖျက်ချင်လျှင်
 
-ဒီ update သည် frontend display/help/settings ကိုသာပြင်သည်။ Google Sheets/Drive data format၊ encryption၊ Firebase config၊ Apps Script backend ကို မပြောင်းပါ။ ရှိပြီးသား records/documents မဖျက်ပါ။ Layout ရွေးချယ်မှုကိုသာ browser localStorage တွင်မှတ်ပြီး passwords၊ tokens သို့မဟုတ် Vault data မသိမ်းပါ။
+Deploy မလုပ်မီ `.before-semiannual` backup ဖိုင်သုံးခုကို မူလအမည်သို့ပြန်ထားနိုင်သည်။ Deploy ပြီးသားဖြစ်လျှင် backup ပြန်ထား၊ CACHE အမည်ထပ်ပြောင်းပြီး hosting deploy ပြန်လုပ်ပါ။
+
+ဒီ update က frontend files သုံးခုကိုသာပြင်သည်။ `config.js`၊ Apps Script၊ Google Sheets data နဲ့ encryption format ကို မပြောင်းပါ။

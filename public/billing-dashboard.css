@@ -1,0 +1,5 @@
+/* Billing Dashboard v2.6 */
+.stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+.stat.stat-active{background:linear-gradient(145deg,#fff,#efedff)}.stat.stat-today{background:linear-gradient(145deg,#fff,#fff6da)}.stat.stat-overdue{background:linear-gradient(145deg,#fff,#ffebe8)}.stat.stat-next30{background:linear-gradient(145deg,#fff,#eaf4ff)}.stat.stat-next90{background:linear-gradient(145deg,#fff,#e8f6f5)}.stat.stat-next180{background:linear-gradient(145deg,#fff,#f0ecff)}.stat.stat-month-due{background:linear-gradient(145deg,#fff,#fff0e7)}.stat.stat-average{background:linear-gradient(145deg,#fff,#eaf7ee)}
+.stat.stat-today strong{color:#a97820}.stat.stat-overdue strong{color:#b95f55}.stat.stat-next30 strong,.stat.stat-next90 strong,.stat.stat-next180 strong{color:#4772a2}.stat.stat-month-due strong{color:#a96138}.stat.stat-average strong{color:#35775b}
+@media(max-width:1050px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
