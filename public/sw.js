@@ -1,10 +1,11 @@
-const CACHE = "family-vault-personal-shell-calendar-alerts-v4-0";
+const CACHE = "family-vault-personal-shell-payment-history-v4-1";
 const SHELL = [
   "/billing-dashboard.css",
   "/document-preview.css",
   "/record-layout.css",
   "/pagination.css",
   "/calendar.css",
+  "/payments.css",
   "/quick-filters.css",
   "/legal.css",
   "/privacy.html",
@@ -20,6 +21,7 @@ const SHELL = [
   "/organizer.js",
   "/pagination.js",
   "/calendar.js",
+  "/payments.js",
   "/config.js",
   "/manifest.webmanifest",
   "/icon.svg",

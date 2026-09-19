@@ -18,6 +18,12 @@ import {
   calendarKindLabel,
   filterCalendarEvents,
 } from "./calendar.js";
+import {
+  activePayments,
+  groupPaymentsByMonth,
+  paymentTotals,
+  paymentYears,
+} from "./payments.js";
 import { config } from "./config.js";
 import {
   deriveKey,
@@ -67,6 +73,8 @@ let auth,
   recordPage = 1,
   documentPage = 1,
   calendarFilter = "all",
+  paymentYearFilter = "all",
+  paymentHistoryMode = "history",
   pageSize = (() => {
     try {
       const saved = Number(localStorage.getItem("family-vault-page-size"));
@@ -325,6 +333,44 @@ function addDays(date, days) {
   value.setUTCDate(value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
 }
+function paymentMonthLabel(month) {
+  if (!/^\d{4}-\d{2}$/.test(month)) return month;
+  return new Date(`${month}-01T12:00:00`).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
+}
+function renderPaymentHistory() {
+  const allActive = activePayments(data.payments);
+  const query = $("#search").value.trim().toLowerCase();
+  const searched = allActive.filter((payment) =>
+    [payment.name, payment.memo, payment.date, payment.amount]
+      .join(" ")
+      .toLowerCase()
+      .includes(query),
+  );
+  const years = paymentYears(searched);
+  if (paymentYearFilter !== "all" && !years.includes(paymentYearFilter))
+    paymentYearFilter = "all";
+  const visible =
+    paymentYearFilter === "all"
+      ? searched
+      : searched.filter((payment) =>
+          payment.date.startsWith(paymentYearFilter),
+        );
+  const groups = groupPaymentsByMonth(visible);
+  const totals = paymentTotals(allActive, today().slice(0, 7));
+  const trashed = data.payments
+    .filter((payment) => payment.deletedAt)
+    .sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt)));
+  $("#resultCount").textContent = `${allActive.length} payments · ${money(totals.total)} recorded`;
+  const tabs = `<div class="payment-tabs" role="group" aria-label="Payment history view"><button type="button" data-action="paymentMode" data-mode="history" aria-pressed="${paymentHistoryMode === "history"}">History <span>${allActive.length}</span></button><button type="button" data-action="paymentMode" data-mode="trash" aria-pressed="${paymentHistoryMode === "trash"}">Recently removed <span>${trashed.length}</span></button></div>`;
+  if (paymentHistoryMode === "trash") {
+    $("#content").innerHTML = `<section class="payment-intro"><div><span class="eyebrow">PAYMENT RECORDS</span><h2>Recently removed</h2><p>Restore a payment removed by mistake, or delete it permanently.</p></div>${tabs}</section><div class="payment-trash-list">${trashed.length ? trashed.map((payment) => `<div class="payment-trash-row"><time>${E(payment.date)}</time><span><strong>${E(payment.name)}</strong><small>${E(payment.memo || "No memo")}</small></span><strong>${money(payment.amount)}</strong><div><button type="button" data-action="restorePayment" data-id="${E(payment.id)}">Restore</button><button type="button" class="danger" data-action="deletePaymentPermanent" data-id="${E(payment.id)}">Delete permanently</button></div></div>`).join("") : '<div class="payment-empty"><span aria-hidden="true">✓</span><h3>No removed payments</h3><p>Payments removed from history can be restored here.</p></div>'}</div>`;
+    return;
+  }
+  $("#content").innerHTML = `<section class="payment-intro"><div><span class="eyebrow">PAYMENT RECORDS</span><h2>Monthly payment history</h2><p>Payments are grouped by paid month. These entries record payments; they do not transfer money.</p></div>${tabs}</section><div class="payment-summary"><div><span>Total recorded</span><strong>${money(totals.total)}</strong></div><div><span>This month</span><strong>${money(totals.currentMonth)}</strong></div><div><span>Payments</span><strong>${totals.count}</strong></div><div><span>Months tracked</span><strong>${totals.months}</strong></div></div><div class="payment-controls"><label>Year <select data-payment-year><option value="all">All years</option>${paymentYears(allActive).map((year) => `<option value="${year}"${paymentYearFilter === year ? " selected" : ""}>${year}</option>`).join("")}</select></label><span>${visible.length} payment${visible.length === 1 ? "" : "s"}</span></div><div class="payment-months">${groups.length ? groups.map((group, index) => `<details class="payment-month"${index === 0 ? " open" : ""}><summary><span><strong>${E(paymentMonthLabel(group.month))}</strong><small>${group.entries.length} payment${group.entries.length === 1 ? "" : "s"}</small></span><strong>${money(group.total)}</strong></summary><div class="payment-table-wrap"><table class="payment-table"><thead><tr><th>Paid date</th><th>Bill / service</th><th>Memo</th><th>Amount</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${group.entries.map((payment) => `<tr><td data-label="Paid date">${E(payment.date)}</td><td data-label="Bill / service"><strong>${E(payment.name)}</strong></td><td data-label="Memo">${E(payment.memo || "—")}</td><td data-label="Amount"><strong>${money(payment.amount)}</strong></td><td class="payment-actions"><button type="button" data-action="trashPayment" data-id="${E(payment.id)}">Remove</button></td></tr>`).join("")}</tbody></table></div></details>`).join("") : '<div class="payment-empty"><span aria-hidden="true">↗</span><h3>No payments found</h3><p>Record a payment from an actual Bill, or choose another year.</p></div>'}</div>`;
+}
 function render() {
   if (!key) return;
   refreshGroups();
@@ -407,6 +453,12 @@ function render() {
   $("#recordType").hidden = view === "documents";
   $("#category").hidden = view === "documents";
   $("#quickFilters").hidden = view !== "records";
+  $("#filtersToggle").hidden = view === "history";
+  $("#filterPanel").hidden = view === "history";
+  $("#search").placeholder =
+    view === "history"
+      ? "Search payment name, memo, date, amount…"
+      : "Name, provider, memo…";
   $("#settingsPanel").hidden = view !== "settings";
   $(".toolbar").hidden = view === "settings";
   $("#content").hidden = view === "settings";
@@ -416,18 +468,7 @@ function render() {
     $("#content").innerHTML =
       `<div class="cards">${recordPages.items.map((r) => `<article class="card ${r.isExample ? "example-card" : ""}"><div class="record-icon" aria-hidden="true">${r.recordType === "bill" ? "↗" : "◈"}</div>${r.isExample ? '<span class="example-label">Demo</span>' : ""}<span class="tag">${E(r.category)} · ${E(r.group || "Ungrouped")} · ${E(r.status)}</span><h3>${r.favorite ? "★ " : ""}${E(r.name)}</h3><p class="muted">${E(r.tags || "")}</p><p class="muted">${E(r.provider || "—")}${r.recordType === "bill" ? ` · ${E(cycleLabels[r.frequency] || r.frequency)}` : ""}</p>${r.recordType === "bill" ? `<strong class="bill-amount">${money(r.amount)}<small> / ${E(cycleLabels[r.frequency] || r.frequency)}</small></strong>` : `<p class="muted account-identity">${E(r.username || r.email || "No username or email")}</p><p class="muted">Account record</p>${r.accountState && r.accountState !== "not-applicable" ? `<span class="account-state">${E(cycleLabels[r.accountState] || r.accountState)}</span>` : ""}`}<dl>${r.recordType === "bill" ? `<dt>Due</dt><dd>${E(r.dueDate || "—")}</dd><dt>Renewal</dt><dd>${E(r.renewalDate || "—")}</dd><dt>Payment</dt><dd>${E(r.paymentStatus || "unpaid")}</dd>` : `<dt>Renewal</dt><dd>${E(r.renewalDate || "—")}</dd><dt>Expiry</dt><dd>${E(r.expiryDate || "—")}</dd>`}</dl><details><summary>Account details</summary><dl>${["username", "email", "accountNumber", "currentPlan", "url", "expiryDate", "memo", "providerHistory"].map((k) => `<dt>${E(k)}</dt><dd>${E(r[k] || "—")}</dd>`).join("")}</dl><button data-action="reveal" data-id="${E(r.id)}">Show password</button><span class="password"></span></details><button data-action="favorite" data-id="${E(r.id)}">${r.favorite ? "★" : "☆"}</button><button data-action="edit" data-id="${E(r.id)}">Edit</button>${r.recordType === "bill" ? `<button data-action="pay" data-id="${E(r.id)}">Record payment</button>` : ""}<button data-action="duplicate" data-id="${E(r.id)}">Duplicate</button><button data-action="deleteRecord" class="danger" data-id="${E(r.id)}">Delete</button><button data-action="archive" data-id="${E(r.id)}">${r.status === "archived" ? "Activate" : "Archive"}</button></article>`).join("")}</div>${paginationMarkup(recordPages, "records")}`;
   if (view === "calendar") renderCalendar(all, ids);
-  if (view === "history")
-    $("#content").innerHTML = data.payments
-      .filter(
-        (p) =>
-          ids.has(p.recordId) || (!p.recordId && $("#status").value === "all"),
-      )
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .map(
-        (p) =>
-          `<div class="event"><strong>${E(p.date)}</strong><span>${E(p.name)} · ${money(p.amount)} · ${E(p.memo)}</span><button data-action="removePayment" data-id="${E(p.id)}">Delete payment</button></div>`,
-      )
-      .join("");
+  if (view === "history") renderPaymentHistory();
   if (!$("#content").textContent.trim())
     $("#content").innerHTML =
       '<div class="empty-state"><span aria-hidden="true">◈</span><h3>Save in one place.</h3><p>No records or No filter criteria match.</p><p>You can add new Accounts or Bills.</p><button data-action="emptyAdd">＋ Account</button></div>';
@@ -696,14 +737,11 @@ $("#recordForm").onsubmit = (e) => {
 function deleteRecord(id) {
   run(async () => {
     if (
-      !confirm(
-        "Permanently delete this record and related payment history? Proceed?",
-      )
+      !confirm("Permanently delete this record? Its payment history will be retained. Proceed?")
     )
       return;
     const next = structuredClone(data);
     next.records = next.records.filter((r) => r.id !== id);
-    next.payments = next.payments.filter((p) => p.recordId !== id);
     await commit(next);
     $("#editor").close();
     $("#recordForm").reset();
@@ -727,6 +765,40 @@ $("#content").onclick = (e) => {
         block: "start",
       }),
     );
+    return;
+  }
+  if (b.dataset.action === "paymentMode") {
+    paymentHistoryMode = b.dataset.mode === "trash" ? "trash" : "history";
+    renderPaymentHistory();
+    return;
+  }
+  if (
+    ["trashPayment", "restorePayment", "deletePaymentPermanent"].includes(
+      b.dataset.action,
+    )
+  ) {
+    const payment = data.payments.find((item) => item.id === b.dataset.id);
+    if (!payment) return;
+    if (
+      b.dataset.action === "trashPayment" &&
+      !confirm("Remove this payment from the monthly history? You can restore it from Recently removed.")
+    )
+      return;
+    if (
+      b.dataset.action === "deletePaymentPermanent" &&
+      !confirm("Permanently delete this payment record? This cannot be undone.")
+    )
+      return;
+    run(async () => {
+      const next = structuredClone(data);
+      const target = next.payments.find((item) => item.id === b.dataset.id);
+      if (b.dataset.action === "trashPayment")
+        target.deletedAt = new Date().toISOString();
+      if (b.dataset.action === "restorePayment") delete target.deletedAt;
+      if (b.dataset.action === "deletePaymentPermanent")
+        next.payments = next.payments.filter((item) => item.id !== b.dataset.id);
+      await commit(next);
+    });
     return;
   }
   if (b.dataset.action === "docFilter") {
@@ -779,6 +851,12 @@ $("#content").onclick = (e) => {
   });
 };
 $("#content").addEventListener("change", (e) => {
+  const year = e.target.closest("select[data-payment-year]");
+  if (year) {
+    paymentYearFilter = year.value;
+    renderPaymentHistory();
+    return;
+  }
   const select = e.target.closest("select[data-page-size]");
   if (!select) return;
   const requested = Number(select.value);
@@ -1048,7 +1126,7 @@ $("#notifications").onclick = () =>
     message(
       pending
         ? `Browser alerts are on. ${pending} due or overdue item${pending === 1 ? "" : "s"} need attention.`
-        : "Browser alerts are on. A test notification was sent. Alerts work while the app is open; email reminders work in the background.",
+        : "Browser alerts are on. A test notification was sent to this device, not by email. Email reminders are separate: enable them in Settings to receive a private email when an alert is overdue or due within 2 days.",
     );
   });
 for (const event of ["pointerdown", "keydown", "touchstart"])
