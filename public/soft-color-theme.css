@@ -1,0 +1,194 @@
+/* Family Vault — soft layered color theme
+   Paste at the END of public/style.css. */
+:root {
+  --accent:#5b50e6;
+  --accent-dark:#4539ca;
+  --ink:#24243b;
+  --muted:#77778e;
+  --line:#dedfee;
+  --page:#f2f3fa;
+  --surface:#fffefd;
+  --lavender:#efedff;
+  --lavender-2:#e8e4ff;
+  --blue-soft:#edf5ff;
+  --mint-soft:#edf8f4;
+  --peach-soft:#fff3ea;
+}
+
+body {
+  color:var(--ink);
+  background:
+    radial-gradient(circle at 8% 8%,#e9e7ff 0,transparent 25rem),
+    radial-gradient(circle at 92% 35%,#e9f4ff 0,transparent 28rem),
+    linear-gradient(145deg,#f5f5fb 0%,#f0f2fa 52%,#f7f4fa 100%);
+  background-attachment:fixed;
+}
+
+header {
+  background:#fffefdec;
+  border-bottom-color:#ddddeb;
+  box-shadow:0 7px 28px #37325c0a;
+}
+
+header .brand {color:#27263e}
+header .privacy-badge {color:#85849a}
+
+/* Page heading gets its own subtle visual area */
+#workspace>.heading {
+  position:relative;
+  padding:24px 26px;
+  border:1px solid #e3e0f3;
+  border-radius:20px;
+  background:linear-gradient(120deg,#ffffffd9,#f0edffcf 55%,#edf6ffcc);
+  box-shadow:0 10px 35px #43406308;
+  overflow:hidden;
+}
+
+#workspace>.heading::after {
+  content:'◇';
+  position:absolute;
+  right:29%;
+  top:-55px;
+  color:#7168e612;
+  font-size:180px;
+  line-height:1;
+  pointer-events:none;
+}
+
+/* Summary cards — each has a calm, distinct tint */
+.stat {
+  border-color:transparent;
+  box-shadow:0 9px 28px #3c3a5c0a;
+}
+.stat:nth-child(1) {background:linear-gradient(145deg,#ffffff,#efedff)}
+.stat:nth-child(2) {background:linear-gradient(145deg,#ffffff,#edf5ff)}
+.stat:nth-child(3) {background:linear-gradient(145deg,#ffffff,#fff1ec)}
+.stat:nth-child(4) {background:linear-gradient(145deg,#ffffff,#edf8f4)}
+.stat:nth-child(1) strong {color:#5549d7}
+.stat:nth-child(2) strong {color:#3976aa}
+.stat:nth-child(3) strong {color:#bb6659}
+.stat:nth-child(4) strong {color:#347d69}
+
+.welcome-banner {
+  border-color:#d8d3fc;
+  background:linear-gradient(110deg,#eae7ff 0%,#f1efff 47%,#edf4ff 100%);
+  box-shadow:0 8px 28px #4f46a80a;
+}
+.welcome-banner button {background:#fffefd;border-color:#cbc5f7}
+
+nav {
+  border:1px solid #e2e0ed;
+  border-radius:16px;
+  padding:7px;
+  background:#ffffffa3;
+  box-shadow:0 6px 24px #3e3a6308;
+}
+nav button.selected {
+  color:#4d43cd;
+  background:linear-gradient(135deg,#dedaff,#ece9ff);
+  box-shadow:0 4px 13px #574ee714;
+}
+
+.toolbar {
+  border-color:#dedfec;
+  background:linear-gradient(145deg,#fffefd,#f8f7fc);
+  box-shadow:0 9px 28px #3736510a;
+}
+.search-row input {background:#f2f3fa;border-color:#e2e3ef}
+.filter-panel {border-top-color:#e9e8f1}
+.filter-panel select {background:#fff;border-color:#dcdeea}
+
+.collection-heading h2 {color:#323049}
+.encrypted-label {
+  padding:5px 10px;
+  color:#5d5594;
+  background:#ece9ff;
+  border-radius:20px;
+}
+
+.card {
+  border-color:#e0e0ec;
+  background:linear-gradient(155deg,#fffefd 55%,#f8f7fc);
+  box-shadow:0 7px 25px #38364f0a;
+}
+.card:nth-child(4n+2) {background:linear-gradient(155deg,#fffefd 55%,#f2f6fd)}
+.card:nth-child(4n+3) {background:linear-gradient(155deg,#fffefd 55%,#f4f1fc)}
+.card:nth-child(4n+4) {background:linear-gradient(155deg,#fffefd 55%,#f1f8f5)}
+.card:hover {
+  border-color:#c9c5ea;
+  box-shadow:0 13px 34px #48417213;
+  transform:translateY(-2px);
+}
+.record-icon {background:#eae6ff;border-color:#dcd5ff;color:#6257d9}
+.tag {background:#eeedf5;color:#747187}
+
+.panel {
+  border-color:#e0dfeb;
+  background:linear-gradient(150deg,#fffefd,#faf9fd);
+  box-shadow:0 8px 28px #39375408;
+}
+.settings-organizers>section {background:#f7f5ff;border-color:#e4e0f4}
+
+input,select,textarea {
+  border-color:#d9dbe8;
+  background:#fffefd;
+}
+input:hover,select:hover,textarea:hover {border-color:#c9c5e7}
+input:focus-visible,select:focus-visible,textarea:focus-visible {
+  outline-color:#c8c1ff;
+  border-color:#7d70e6;
+  box-shadow:0 0 0 5px #675bdf0b;
+}
+
+button.primary,#login,#add,#addBill,#unlockForm button,
+.dialog-actions button:last-child,#docForm>button,#passForm>button:first-of-type {
+  background:linear-gradient(135deg,#6256eb,#4d42d8);
+  box-shadow:0 8px 22px #574ee724;
+}
+button.primary:hover,#add:hover,#addBill:hover,#login:hover,#unlockForm button:hover {
+  background:linear-gradient(135deg,#5145d8,#4035c2);
+}
+
+.event {background:linear-gradient(135deg,#fffefd,#f6f5fc);border-color:#dfdeeb}
+.empty-state {background:#ffffffb8;border-color:#ccc8e4}
+.calendar-grid {background:#ffffffc9;border-color:#deddea}
+.day {background:#fffefd}
+.day:nth-child(even):not(.empty) {background:#faf9ff}
+.day.today {background:#e8e4ff;border-color:#aaa1ee}
+
+.footer-actions {
+  margin-top:34px;
+  padding:24px;
+  border:1px solid #dfdeeb;
+  border-radius:16px;
+  background:#ffffff8c;
+}
+
+/* Login/unlock card */
+#gate {
+  background:
+    radial-gradient(circle at 100% 100%,#e8e4ff 0,transparent 17rem),
+    linear-gradient(145deg,#fffefd 65%,#f3f0ff);
+  border-color:#dcd8ed;
+  box-shadow:0 24px 70px #39345e17;
+}
+#gate::before {background:linear-gradient(145deg,#e2ddff,#f0edff)}
+#unlockForm {border-top-color:#e6e2f0}
+
+/* Dialogs remain clear but not stark */
+dialog {background:linear-gradient(150deg,#fffefd,#faf8ff);border-color:#ddd9ec}
+dialog .heading,dialog .dialog-actions {background:#fffefd}
+dialog::backdrop {background:#28243e99}
+
+@media(max-width:760px) {
+  body {background:linear-gradient(160deg,#f5f5fb,#eeeff8)}
+  #workspace>.heading {padding:20px}
+  nav {border-radius:0;background:#fffefdf5}
+  .card:hover {transform:none}
+  .footer-actions {padding:16px}
+}
+
+@media(prefers-color-scheme:dark) {
+  /* Keep this application light unless a complete audited dark theme is added. */
+  :root {color-scheme:light}
+}
