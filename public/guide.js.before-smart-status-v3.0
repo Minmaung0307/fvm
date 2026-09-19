@@ -13,7 +13,7 @@ export const tips={
  url:'Login သို့မဟုတ် service website လင့်ခ်။ https:// ဖြင့်ရေးပါ။',
  email:'Account နဲ့ချိတ်ထားသော email။ လက်ရှိ Gmail login နဲ့ မတူလည်းရသည်။',
  accountNumber:'Provider ကပေးထားသော account/customer number။ Encrypt လုပ်ပြီးသိမ်းမည်။',
- accountState:'Category နဲ့ အမည်အလိုက် ရွေးချယ်စရာပြောင်းသည်။ ကား/အိမ်အတွက် Financed, Paid off, Owned outright စသည်၊ Phone/Internet service အတွက် Active, Autopay, Cancelled, Switched provider စသည်ကိုရွေးနိုင်သည်။',
+ accountState:'ကား၊ အိမ် စသည့် account များအတွက် Not applicable၊ Financed သို့မဟုတ် Paid off ကိုရွေးပါ။ Login account များအတွက် Not applicable ထားပါ။',
  amount:'Bill cycle တစ်ခု၏ ပမာဏ။ Yearly ရွေးထားလျှင် တစ်နှစ်စာပမာဏကိုထည့်ပါ။',
  frequency:'None = cycle မရှိ၊ Monthly = လစဉ်၊ Quarterly = ၃ လတစ်ကြိမ်၊ Every 4 months = ၄ လတစ်ကြိမ်၊ Semiannual = ၆ လတစ်ကြိမ်၊ Annual / yearly = နှစ်စဉ်၊ One time = တစ်ကြိမ်သာ။ Record payment လုပ်လျှင် recurring due date ကို cycle တစ်ခုရွှေ့သည်။',
  dueDate:'နောက်တစ်ကြိမ်ပေးဆောင်ရမည့်ရက်။ မထည့်လျှင် bill due reminder မပေးပါ။',

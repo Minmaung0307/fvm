@@ -13,10 +13,7 @@
     <link rel="stylesheet" href="/view-modes.css" />
     <link rel="stylesheet" href="/settings-guide.css" />
     <link rel="stylesheet" href="/document-preview.css" />
-    <link rel="stylesheet" href="/record-layout.css" />
-    <link rel="stylesheet" href="/quick-filters.css" />
-    <link rel="stylesheet" href="/billing-dashboard.css" />
-  </head>
+  <link rel="stylesheet" href="/billing-dashboard.css"></head>
   <body>
     <header>
       <a class="brand" href="/">◈ Family Vault</a
@@ -102,11 +99,6 @@
               Filters</button
             ><button id="refresh">↻ Refresh</button>
           </div>
-          <div
-            id="quickFilters"
-            class="quick-filters"
-            aria-label="Quick collections"
-          ></div>
           <div id="filterPanel" class="filter-panel">
             <select id="recordType" aria-label="Record type">
               <option value="all">Accounts & bills</option>
@@ -366,28 +358,14 @@
     <dialog id="docPreviewDialog">
       <div class="doc-preview-shell">
         <div class="heading">
-          <div>
-            <p class="eyebrow">ENCRYPTED DOCUMENT PREVIEW</p>
-            <h2 id="docPreviewTitle">Document</h2>
-          </div>
-          <button id="docPreviewClose" type="button" aria-label="Close preview">
-            ✕
-          </button>
+          <div><p class="eyebrow">ENCRYPTED DOCUMENT PREVIEW</p><h2 id="docPreviewTitle">Document</h2></div>
+          <button id="docPreviewClose" type="button" aria-label="Close preview">✕</button>
         </div>
         <div id="docPreviewStage" class="doc-preview-stage"></div>
         <div id="docPreviewMeta" class="doc-preview-meta"></div>
         <div class="doc-preview-actions">
-          <button id="docPreviewTrash" type="button" class="danger">
-            Move to Trash
-          </button>
-          <button id="docPreviewPermanent" type="button" class="danger" hidden>
-            Delete permanently
-          </button>
-          <span class="doc-preview-action-spacer"></span>
           <button id="docPreviewEdit" type="button">Edit details</button>
-          <button id="docPreviewDownload" type="button" class="primary">
-            Download original
-          </button>
+          <button id="docPreviewDownload" type="button" class="primary">Download original</button>
         </div>
       </div>
     </dialog>

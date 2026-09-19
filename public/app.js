@@ -1,120 +1,1921 @@
-import {initializeApp} from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js';
-import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut,setPersistence,inMemoryPersistence} from 'https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js';
-import {tips,guideMarkup} from './guide.js';
-import {addExamples} from './samples.js';
-import {categories,organize,sortedRecords} from './organizer.js';
-import {config} from './config.js';
-import {deriveKey,seal,unseal,events,advanceDate,sealBytes,unsealBytes,initialData,normalize,allEvents,to64,from64} from './vault.js';
-const $=s=>document.querySelector(s), E=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let tooltipSource=null;
-let auth,user,key,docKey,googleToken='',data=initialData(),snapshot,view='records',generation=0,busy=false,lastActivity=Date.now(),notified=new Set();
-const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
-const money=n=>new Intl.NumberFormat(undefined,{style:'currency',currency:config.currency}).format(Number(n)||0);
-function message(s){$('#message').textContent=s;}
-function lock(){generation++;key=null;docKey=null;data=initialData();snapshot=null;$('#content').replaceChildren();$('#stats').replaceChildren();$('#recordForm').reset();$('#editor').close();$('#backupPrompt').close();$('#docEditor').close();$('#passEditor').close();$('#organizerDialog').close();$('#paymentDialog').close();$('#organizerForm').reset();$('#paymentForm').reset();$('#paymentName').textContent='';$('#categoriesList').replaceChildren();$('#docForm').reset();$('#passForm').reset();hideTooltip();$('#settingsPanel').hidden=true;$('#groupsList').replaceChildren();$('#driveInfo').replaceChildren();$('#workspace').hidden=true;$('#gate').hidden=false;$('#unlockForm').hidden=!user;$('#lock').hidden=true;$('#passphrase').value='';$('#confirmPass').value='';message('Vault locked.');}
-async function api(action,extra={}){if(!user||!googleToken)throw Error('Google login နှင့် Drive permission လိုအပ်ပါသည်။');const idToken=await user.getIdToken();const response=await fetch(config.apiUrl,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,idToken,googleToken,...extra}),redirect:'follow',cache:'no-store'});if(!response.ok)throw Error('Backend connection failed');const result=await response.json();if(!result.ok)throw Error(result.error||'Request failed');return result;}
-async function run(fn){if(busy)return;busy=true;$('#workspace').setAttribute('aria-busy','true');$('#busyIndicator').hidden=false;document.querySelectorAll('button').forEach(b=>b.disabled=true);try{await fn();}catch(e){message(e.message);}finally{busy=false;$('#workspace').setAttribute('aria-busy','false');$('#busyIndicator').hidden=true;document.querySelectorAll('button').forEach(b=>b.disabled=false);}}
-async function commit(next){const g=generation;const box=await seal(next,key);if(g!==generation)return;const reminders=allEvents(next).map(e=>({kind:e.kind,date:e.date}));const result=await api('save',{revision:snapshot.revision,box,reminders,emailReminders:next.settings.emailReminders===true});if(g!==generation)return;data=next;snapshot={...snapshot,box,revision:result.revision};render();message(result.reminderConfigured===false?'Data saved; email reminder configuration failed. Retry save or contact admin.':'Encrypted save ပြီးပါပြီ။');}
-function selected(){const q=$('#search').value.toLowerCase();return sortedRecords(data.records.filter(r=>($('#recordType').value==='all'||(r.recordType||'account')===$('#recordType').value)&&($('#groupFilter').value==='all'||r.group===$('#groupFilter').value)&&($('#favoriteFilter').value==='all'||r.favorite)&&($('#status').value==='all'||r.status===$('#status').value)&&($('#category').value==='all'||r.category===$('#category').value)&&[r.name,r.provider,r.username,r.email,r.memo,r.providerHistory,r.tags,r.group].join(' ').toLowerCase().includes(q)),$('#sortOrder').value);}
-function monthlyAverage(record){
-  if(record.recordType!=='bill')return 0;
-  const amount=Number(record.amount)||0;
-  return record.frequency==='monthly'?amount:record.frequency==='quarterly'?amount/3:record.frequency==='four-month'?amount/4:record.frequency==='semiannual'?amount/6:record.frequency==='yearly'?amount/12:0;
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  onAuthStateChanged,
+  signOut,
+  setPersistence,
+  inMemoryPersistence,
+} from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
+import { tips, guideMarkup } from "./guide.js";
+import { addExamples } from "./samples.js";
+import { categories, organize, sortedRecords } from "./organizer.js";
+import { config } from "./config.js";
+import {
+  deriveKey,
+  seal,
+  unseal,
+  events,
+  advanceDate,
+  sealBytes,
+  unsealBytes,
+  initialData,
+  normalize,
+  allEvents,
+  to64,
+  from64,
+} from "./vault.js";
+const $ = (s) => document.querySelector(s),
+  E = (s) =>
+    String(s ?? "").replace(
+      /[&<>"']/g,
+      (c) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[c],
+    );
+let tooltipSource = null;
+let auth,
+  user,
+  key,
+  docKey,
+  googleToken = "",
+  data = initialData(),
+  snapshot,
+  view = "records",
+  generation = 0,
+  busy = false,
+  lastActivity = Date.now(),
+  notified = new Set(),
+  documentTypeFilter = "all",
+  previewDocumentId = "",
+  previewUrl = "",
+  thumbnailUrls = new Set(),
+  quickFilter = "all";
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const money = (n) =>
+  new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: config.currency,
+  }).format(Number(n) || 0);
+function message(s) {
+  $("#message").textContent = s;
 }
-function addDays(date,days){const value=new Date(date+'T00:00:00Z');value.setUTCDate(value.getUTCDate()+days);return value.toISOString().slice(0,10);}
-function render(){if(!key)return;refreshGroups();const all=allEvents(data),now=today(),soon=new Date(`${now}T00:00:00Z`);soon.setUTCDate(soon.getUTCDate()+30);const end=soon.toISOString().slice(0,10);const active=data.records.filter(r=>r.status==='active'&&!r.isExample);const next30=addDays(now,30),next90=addDays(now,90),next180=addDays(now,180);
-const monthStart=now.slice(0,7)+'-01',monthEnd=new Date(Date.UTC(Number(now.slice(0,4)),Number(now.slice(5,7)),0)).toISOString().slice(0,10);
-const realBills=active.filter(r=>r.recordType==='bill');
-const dashboardStats=[
- ['Active records',active.length,'stat-active'],
- ['Due today',all.filter(e=>e.date===now).length,'stat-today'],
- ['Overdue alerts',all.filter(e=>e.date<now).length,'stat-overdue'],
- ['Next 30 days',all.filter(e=>e.date>now&&e.date<=next30).length,'stat-next30'],
- ['Next 90 days',all.filter(e=>e.date>now&&e.date<=next90).length,'stat-next90'],
- ['Next 180 days',all.filter(e=>e.date>now&&e.date<=next180).length,'stat-next180'],
- ['Bills due this month',money(realBills.filter(r=>r.dueDate>=monthStart&&r.dueDate<=monthEnd).reduce((sum,r)=>sum+(Number(r.amount)||0),0)),'stat-month-due'],
- ['Average / month',money(realBills.reduce((sum,r)=>sum+monthlyAverage(r),0)),'stat-average']
+function lock() {
+  generation++;
+  clearDocumentUrls();
+  closeDocumentPreview();
+  key = null;
+  docKey = null;
+  data = initialData();
+  snapshot = null;
+  $("#content").replaceChildren();
+  $("#stats").replaceChildren();
+  $("#recordForm").reset();
+  $("#editor").close();
+  $("#backupPrompt").close();
+  $("#docEditor").close();
+  $("#passEditor").close();
+  $("#organizerDialog").close();
+  $("#paymentDialog").close();
+  $("#organizerForm").reset();
+  $("#paymentForm").reset();
+  $("#paymentName").textContent = "";
+  $("#categoriesList").replaceChildren();
+  $("#docForm").reset();
+  $("#passForm").reset();
+  hideTooltip();
+  $("#settingsPanel").hidden = true;
+  $("#groupsList").replaceChildren();
+  $("#driveInfo").replaceChildren();
+  $("#workspace").hidden = true;
+  $("#gate").hidden = false;
+  $("#unlockForm").hidden = !user;
+  $("#lock").hidden = true;
+  $("#passphrase").value = "";
+  $("#confirmPass").value = "";
+  message("Vault locked.");
+}
+async function api(action, extra = {}) {
+  if (!user || !googleToken)
+    throw Error("Google login နှင့် Drive permission လိုအပ်ပါသည်။");
+  const idToken = await user.getIdToken();
+  const response = await fetch(config.apiUrl, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ action, idToken, googleToken, ...extra }),
+    redirect: "follow",
+    cache: "no-store",
+  });
+  if (!response.ok) throw Error("Backend connection failed");
+  const result = await response.json();
+  if (!result.ok) throw Error(result.error || "Request failed");
+  return result;
+}
+async function run(fn) {
+  if (busy) return;
+  busy = true;
+  $("#workspace").setAttribute("aria-busy", "true");
+  $("#busyIndicator").hidden = false;
+  document.querySelectorAll("button").forEach((b) => (b.disabled = true));
+  try {
+    await fn();
+  } catch (e) {
+    message(e.message);
+  } finally {
+    busy = false;
+    $("#workspace").setAttribute("aria-busy", "false");
+    $("#busyIndicator").hidden = true;
+    document.querySelectorAll("button").forEach((b) => (b.disabled = false));
+  }
+}
+async function commit(next) {
+  const g = generation;
+  const box = await seal(next, key);
+  if (g !== generation) return;
+  const reminders = allEvents(next).map((e) => ({
+    kind: e.kind,
+    date: e.date,
+  }));
+  const result = await api("save", {
+    revision: snapshot.revision,
+    box,
+    reminders,
+    emailReminders: next.settings.emailReminders === true,
+  });
+  if (g !== generation) return;
+  data = next;
+  snapshot = { ...snapshot, box, revision: result.revision };
+  render();
+  message(
+    result.reminderConfigured === false
+      ? "Data saved; email reminder configuration failed. Retry save or contact admin."
+      : "Encrypted save ပြီးပါပြီ။",
+  );
+}
+const onlinePattern =
+  /(github|vercel|firebase|godaddy|squarespace|cloudflare|netlify|hosting|domain|website|repository|developer|stripe|paypal|google cloud|aws|azure)/i;
+function isOnlineAccount(r) {
+  return (
+    (r.recordType || "account") === "account" &&
+    onlinePattern.test(
+      [r.name, r.provider, r.category, r.group, r.tags, r.memo, r.url].join(
+        " ",
+      ),
+    )
+  );
+}
+function recordSearchText(r) {
+  const frequencyTerms = {
+    monthly: "monthly monthly pay every month လစဉ်",
+    quarterly: "quarterly 3mo 3 months every 3 months",
+    "four-month": "4mo 4 months every 4 months",
+    semiannual: "semiannual 6mo 6 months every 6 months",
+    yearly: "yearly annual every year နှစ်စဉ်",
+    "one-time": "one time once တစ်ကြိမ်",
+  };
+  return [
+    r.name,
+    r.provider,
+    r.username,
+    r.email,
+    r.memo,
+    r.providerHistory,
+    r.tags,
+    r.group,
+    r.category,
+    r.url,
+    r.accountState,
+    r.paymentStatus,
+    cycleLabels[r.accountState],
+    cycleLabels[r.frequency],
+    frequencyTerms[r.frequency],
+    r.paymentStatus === "autopay" || r.accountState === "autopay"
+      ? "autopay auto pay automatic payment"
+      : "",
+    isOnlineAccount(r)
+      ? "online account cloud hosting domain website developer"
+      : "",
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+function smartFilterMatch(r, filter = quickFilter) {
+  const now = today(),
+    dates = [r.dueDate, r.renewalDate, r.expiryDate].filter(Boolean).sort(),
+    next = dates[0] || "";
+  if (filter === "all") return true;
+  if (filter === "autopay")
+    return r.paymentStatus === "autopay" || r.accountState === "autopay";
+  if (filter === "monthly") return r.frequency === "monthly";
+  if (filter === "quarterly") return r.frequency === "quarterly";
+  if (filter === "four-month") return r.frequency === "four-month";
+  if (filter === "semiannual") return r.frequency === "semiannual";
+  if (filter === "yearly") return r.frequency === "yearly";
+  if (filter === "one-time") return r.frequency === "one-time";
+  if (filter === "online") return isOnlineAccount(r);
+  if (filter === "due-soon") return next >= now && next <= addDays(now, 30);
+  if (filter === "overdue") return !!next && next < now;
+  if (filter === "paid-off")
+    return r.accountState === "paid-off" || r.accountState === "owned-outright";
+  return true;
+}
+const quickFilterDefinitions = [
+  ["all", "All"],
+  ["autopay", "Autopay"],
+  ["monthly", "Monthly"],
+  ["quarterly", "Every 3 mo"],
+  ["four-month", "Every 4 mo"],
+  ["semiannual", "Every 6 mo"],
+  ["yearly", "Yearly"],
+  ["one-time", "One-time"],
+  ["online", "Online accounts"],
+  ["due-soon", "Due soon"],
+  ["overdue", "Overdue"],
+  ["paid-off", "Paid off"],
 ];
-$('#stats').innerHTML=dashboardStats.map(([label,value,className])=>`<div class="stat ${className}">${E(label)}<strong>${E(value)}</strong></div>`).join('');
-const records=selected(),ids=new Set(records.map(r=>r.id));$('#collectionTitle').textContent=({records:'Accounts & bills',documents:'အရေးကြီးစာရွက်စာတမ်းများ',calendar:'Calendar & alerts',history:'Payment history',settings:'Groups & settings'})[view];$('#resultCount').textContent=view==='records'?`${records.length} records · နမူနာများကို bills estimate / alerts ထဲမတွက်ပါ`:view==='documents'?`${data.documents.filter(matchesDocument).length} documents`:'';
-$('#recordType').hidden=view==='documents';$('#category').hidden=view==='documents';$('#settingsPanel').hidden=view!=='settings';$('.toolbar').hidden=view==='settings';$('#content').hidden=view==='settings';if(view==='settings')renderSettings();if(view==='documents')renderDocuments();if(view==='records')$('#content').innerHTML=`<div class="cards">${records.map(r=>`<article class="card ${r.isExample?'example-card':''}"><div class="record-icon" aria-hidden="true">${r.recordType==='bill'?'↗':'◈'}</div>${r.isExample?'<span class="example-label">နမူနာ</span>':''}<span class="tag">${E(r.category)} · ${E(r.group||'Ungrouped')} · ${E(r.status)}</span><h3>${r.favorite?'★ ':''}${E(r.name)}</h3><p class="muted">${E(r.tags||'')}</p><p class="muted">${E(r.provider||'—')} · ${E(cycleLabels[r.frequency]||r.frequency)}</p>${r.recordType==='bill'?`<strong class="bill-amount">${money(r.amount)}<small> / ${E(cycleLabels[r.frequency]||r.frequency)}</small></strong>`:'<p class="muted">Login account</p>'}<dl><dt>Due</dt><dd>${E(r.dueDate||'—')}</dd><dt>Renewal</dt><dd>${E(r.renewalDate||'—')}</dd><dt>Payment</dt><dd>${E(r.paymentStatus)}</dd></dl><details><summary>Account details</summary><dl>${['username','email','accountNumber','currentPlan','url','expiryDate','memo','providerHistory'].map(k=>`<dt>${E(k)}</dt><dd>${E(r[k]||'—')}</dd>`).join('')}</dl><button data-action="reveal" data-id="${E(r.id)}">Show password</button><span class="password"></span></details><button data-action="favorite" data-id="${E(r.id)}">${r.favorite?'★':'☆'}</button><button data-action="edit" data-id="${E(r.id)}">Edit</button>${r.recordType==='bill'?`<button data-action="pay" data-id="${E(r.id)}">Record payment</button>`:''}<button data-action="duplicate" data-id="${E(r.id)}">Duplicate</button><button data-action="deleteRecord" class="danger" data-id="${E(r.id)}">Delete</button><button data-action="archive" data-id="${E(r.id)}">${r.status==='archived'?'Activate':'Archive'}</button></article>`).join('')}</div>`;
-if(view==='calendar')renderCalendar(all,ids);
-if(view==='history')$('#content').innerHTML=data.payments.filter(p=>ids.has(p.recordId)||(!p.recordId&&$('#status').value==='all')).sort((a,b)=>b.date.localeCompare(a.date)).map(p=>`<div class="event"><strong>${E(p.date)}</strong><span>${E(p.name)} · ${money(p.amount)} · ${E(p.memo)}</span><button data-action="removePayment" data-id="${E(p.id)}">Delete payment</button></div>`).join('');
-if(!$('#content').textContent.trim())$('#content').innerHTML='<div class="empty-state"><span aria-hidden="true">◈</span><h3>တစ်နေရာတည်းမှာ စတင်သိမ်းပါ။</h3><p>မှတ်တမ်းမရှိသေးပါ သို့မဟုတ် filter နှင့်မကိုက်ပါ။ Account / Bill အသစ်ထည့်နိုင်သည်။</p><button data-action="emptyAdd">＋ Account အသစ်</button></div>';attachHelp();checkAlerts();}
-const fields=[['recordType','Record type','select',['account','bill']],['group','Group','select',initialData().groups],['tags','Tags (comma separated)','text'],['name','အမည်','text'],['category','Category','select',['Account','Phone','Internet','Mortgage','Utilities','Insurance','Subscription','Other']],['provider','Provider','text'],['status','Status','select',['active','closed','archived']],['username','Username','text'],['password','Password','password'],['pin','PIN','password'],['currentPlan','Current plan','text'],['url','URL','url'],['email','Email','email'],['accountNumber','Account number','text'],['amount','Amount','number'],['frequency','Billing cycle','select',['none','monthly','quarterly','four-month','semiannual','yearly','one-time']],['dueDate','Due date','date'],['expiryDate','Expiry date','date'],['renewalDate','Renewal date','date'],['paymentStatus','Payment status','select',['unpaid','paid','autopay','pending']],['memo','Memo','text']];
-const basicNames=['name','recordType','group','category','provider','status','tags'];
-const credentialNames=['username','password','pin','email','accountNumber','currentPlan','url'];
-const billNames=['amount','frequency','dueDate','paymentStatus'];
-const cycleLabels={none:'None',monthly:'Monthly',quarterly:'Quarterly / 3 mo','four-month':'Every 4 months',semiannual:'Semiannual / 6 mo',yearly:'Annual / yearly','one-time':'One time'};
-function fieldMarkup([name,label,type,options]){return `<label class="field-label">${E(label)}${type==='select'?`<select name="${name}">${options.map(o=>`<option value="${o}">${E(cycleLabels[o]||o)}</option>`).join('')}</select>`:`<input name="${name}" type="${type}" ${name==='name'?'required maxlength="150"':''} ${type==='number'?'min="0" step="0.01"':''} autocomplete="off">`}</label>`;}
-for(const [selector,names]of [['#fields',basicNames],['#credentialFields',credentialNames],['#billingFields',billNames]])$(selector).innerHTML=names.map(name=>fieldMarkup(fields.find(f=>f[0]===name))).join('');
-$('#dateFields').innerHTML=fields.filter(f=>!basicNames.includes(f[0])&&!credentialNames.includes(f[0])&&!billNames.includes(f[0])).map(fieldMarkup).join('');
-function setRecordSections(){const isBill=$('#recordForm').elements.recordType.value==='bill';$('#billingSection').hidden=!isBill;$('#credentialsSection').open=!isBill;}
-$('#recordForm').elements.recordType.addEventListener('change',()=>{if($('#recordForm').elements.recordType.value==='bill'&&$('#recordForm').elements.frequency.value==='none')$('#recordForm').elements.frequency.value='monthly';setRecordSections();});
+function renderQuickFilters() {
+  const base = data.records.filter(
+    (r) => r.status === "active" && !r.isExample,
+  );
+  $("#quickFilters").innerHTML =
+    '<span class="quick-filters-label">Quick</span>' +
+    quickFilterDefinitions
+      .map(
+        ([value, label]) =>
+          `<button type="button" data-quick-filter="${value}" aria-pressed="${quickFilter === value}">${E(label)}<span>${base.filter((r) => smartFilterMatch(r, value)).length}</span></button>`,
+      )
+      .join("");
+}
+function selected() {
+  const q = $("#search").value.trim().toLowerCase();
+  return sortedRecords(
+    data.records.filter(
+      (r) =>
+        ($("#recordType").value === "all" ||
+          (r.recordType || "account") === $("#recordType").value) &&
+        ($("#groupFilter").value === "all" ||
+          r.group === $("#groupFilter").value) &&
+        ($("#favoriteFilter").value === "all" || r.favorite) &&
+        ($("#status").value === "all" || r.status === $("#status").value) &&
+        ($("#category").value === "all" ||
+          r.category === $("#category").value) &&
+        smartFilterMatch(r) &&
+        recordSearchText(r).includes(q),
+    ),
+    $("#sortOrder").value,
+  );
+}
+function monthlyAverage(record) {
+  if (record.recordType !== "bill") return 0;
+  const amount = Number(record.amount) || 0;
+  return record.frequency === "monthly"
+    ? amount
+    : record.frequency === "quarterly"
+      ? amount / 3
+      : record.frequency === "four-month"
+        ? amount / 4
+        : record.frequency === "semiannual"
+          ? amount / 6
+          : record.frequency === "yearly"
+            ? amount / 12
+            : 0;
+}
+function addDays(date, days) {
+  const value = new Date(date + "T00:00:00Z");
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+function render() {
+  if (!key) return;
+  refreshGroups();
+  const all = allEvents(data),
+    now = today(),
+    soon = new Date(`${now}T00:00:00Z`);
+  soon.setUTCDate(soon.getUTCDate() + 30);
+  const end = soon.toISOString().slice(0, 10);
+  const active = data.records.filter(
+    (r) => r.status === "active" && !r.isExample,
+  );
+  const next30 = addDays(now, 30),
+    next90 = addDays(now, 90),
+    next180 = addDays(now, 180);
+  const monthStart = now.slice(0, 7) + "-01",
+    monthEnd = new Date(
+      Date.UTC(Number(now.slice(0, 4)), Number(now.slice(5, 7)), 0),
+    )
+      .toISOString()
+      .slice(0, 10);
+  const realBills = active.filter((r) => r.recordType === "bill");
+  const dashboardStats = [
+    ["Active records", active.length, "stat-active"],
+    ["Due today", all.filter((e) => e.date === now).length, "stat-today"],
+    ["Overdue alerts", all.filter((e) => e.date < now).length, "stat-overdue"],
+    [
+      "Next 30 days",
+      all.filter((e) => e.date > now && e.date <= next30).length,
+      "stat-next30",
+    ],
+    [
+      "Next 90 days",
+      all.filter((e) => e.date > now && e.date <= next90).length,
+      "stat-next90",
+    ],
+    [
+      "Next 180 days",
+      all.filter((e) => e.date > now && e.date <= next180).length,
+      "stat-next180",
+    ],
+    [
+      "Bills due this month",
+      money(
+        realBills
+          .filter((r) => r.dueDate >= monthStart && r.dueDate <= monthEnd)
+          .reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+      ),
+      "stat-month-due",
+    ],
+    [
+      "Average / month",
+      money(realBills.reduce((sum, r) => sum + monthlyAverage(r), 0)),
+      "stat-average",
+    ],
+  ];
+  $("#stats").innerHTML = dashboardStats
+    .map(
+      ([label, value, className]) =>
+        `<div class="stat ${className}">${E(label)}<strong>${E(value)}</strong></div>`,
+    )
+    .join("");
+  renderQuickFilters();
+  const records = selected(),
+    ids = new Set(records.map((r) => r.id));
+  $("#collectionTitle").textContent = {
+    records: "Accounts & bills",
+    documents: "အရေးကြီးစာရွက်စာတမ်းများ",
+    calendar: "Calendar & alerts",
+    history: "Payment history",
+    settings: "Groups & settings",
+  }[view];
+  $("#resultCount").textContent =
+    view === "records"
+      ? `${records.length} records · နမူနာများကို bills estimate / alerts ထဲမတွက်ပါ`
+      : view === "documents"
+        ? `${data.documents.filter(matchesDocument).length} documents`
+        : "";
+  $("#recordType").hidden = view === "documents";
+  $("#category").hidden = view === "documents";
+  $("#quickFilters").hidden = view !== "records";
+  $("#settingsPanel").hidden = view !== "settings";
+  $(".toolbar").hidden = view === "settings";
+  $("#content").hidden = view === "settings";
+  if (view === "settings") renderSettings();
+  if (view === "documents") renderDocuments();
+  if (view === "records")
+    $("#content").innerHTML =
+      `<div class="cards">${records.map((r) => `<article class="card ${r.isExample ? "example-card" : ""}"><div class="record-icon" aria-hidden="true">${r.recordType === "bill" ? "↗" : "◈"}</div>${r.isExample ? '<span class="example-label">နမူနာ</span>' : ""}<span class="tag">${E(r.category)} · ${E(r.group || "Ungrouped")} · ${E(r.status)}</span><h3>${r.favorite ? "★ " : ""}${E(r.name)}</h3><p class="muted">${E(r.tags || "")}</p><p class="muted">${E(r.provider || "—")}${r.recordType === "bill" ? ` · ${E(cycleLabels[r.frequency] || r.frequency)}` : ""}</p>${r.recordType === "bill" ? `<strong class="bill-amount">${money(r.amount)}<small> / ${E(cycleLabels[r.frequency] || r.frequency)}</small></strong>` : `<p class="muted">Account record</p>${r.accountState && r.accountState !== "not-applicable" ? `<span class="account-state">${E(cycleLabels[r.accountState] || r.accountState)}</span>` : ""}`}<dl>${r.recordType === "bill" ? `<dt>Due</dt><dd>${E(r.dueDate || "—")}</dd><dt>Renewal</dt><dd>${E(r.renewalDate || "—")}</dd><dt>Payment</dt><dd>${E(r.paymentStatus || "unpaid")}</dd>` : `<dt>Renewal</dt><dd>${E(r.renewalDate || "—")}</dd><dt>Expiry</dt><dd>${E(r.expiryDate || "—")}</dd>`}</dl><details><summary>Account details</summary><dl>${["username", "email", "accountNumber", "currentPlan", "url", "expiryDate", "memo", "providerHistory"].map((k) => `<dt>${E(k)}</dt><dd>${E(r[k] || "—")}</dd>`).join("")}</dl><button data-action="reveal" data-id="${E(r.id)}">Show password</button><span class="password"></span></details><button data-action="favorite" data-id="${E(r.id)}">${r.favorite ? "★" : "☆"}</button><button data-action="edit" data-id="${E(r.id)}">Edit</button>${r.recordType === "bill" ? `<button data-action="pay" data-id="${E(r.id)}">Record payment</button>` : ""}<button data-action="duplicate" data-id="${E(r.id)}">Duplicate</button><button data-action="deleteRecord" class="danger" data-id="${E(r.id)}">Delete</button><button data-action="archive" data-id="${E(r.id)}">${r.status === "archived" ? "Activate" : "Archive"}</button></article>`).join("")}</div>`;
+  if (view === "calendar") renderCalendar(all, ids);
+  if (view === "history")
+    $("#content").innerHTML = data.payments
+      .filter(
+        (p) =>
+          ids.has(p.recordId) || (!p.recordId && $("#status").value === "all"),
+      )
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .map(
+        (p) =>
+          `<div class="event"><strong>${E(p.date)}</strong><span>${E(p.name)} · ${money(p.amount)} · ${E(p.memo)}</span><button data-action="removePayment" data-id="${E(p.id)}">Delete payment</button></div>`,
+      )
+      .join("");
+  if (!$("#content").textContent.trim())
+    $("#content").innerHTML =
+      '<div class="empty-state"><span aria-hidden="true">◈</span><h3>တစ်နေရာတည်းမှာ စတင်သိမ်းပါ။</h3><p>မှတ်တမ်းမရှိသေးပါ သို့မဟုတ် filter နှင့်မကိုက်ပါ။ Account / Bill အသစ်ထည့်နိုင်သည်။</p><button data-action="emptyAdd">＋ Account အသစ်</button></div>';
+  attachHelp();
+  checkAlerts();
+}
+const fields = [
+  ["recordType", "Record type", "select", ["account", "bill"]],
+  ["group", "Group", "select", initialData().groups],
+  ["tags", "Tags (comma separated)", "text"],
+  ["name", "အမည်", "text"],
+  [
+    "category",
+    "Category",
+    "select",
+    [
+      "Account",
+      "Phone",
+      "Internet",
+      "Mortgage",
+      "Utilities",
+      "Insurance",
+      "Subscription",
+      "Other",
+    ],
+  ],
+  ["provider", "Provider", "text"],
+  ["status", "Status", "select", ["active", "closed", "archived"]],
+  ["username", "Username", "text"],
+  ["password", "Password", "password"],
+  ["pin", "PIN", "password"],
+  ["currentPlan", "Current plan", "text"],
+  ["url", "URL", "url"],
+  ["email", "Email", "email"],
+  ["accountNumber", "Account number", "text"],
+  [
+    "accountState",
+    "Account / service status",
+    "select",
+    [
+      "not-applicable",
+      "active-current",
+      "inactive",
+      "financed",
+      "paid-off",
+      "owned-outright",
+      "leased-rented",
+      "sold-transferred",
+      "autopay",
+      "cancelled",
+      "switched-provider",
+      "closed",
+    ],
+  ],
+  ["amount", "Amount", "number"],
+  [
+    "frequency",
+    "Billing cycle",
+    "select",
+    [
+      "none",
+      "monthly",
+      "quarterly",
+      "four-month",
+      "semiannual",
+      "yearly",
+      "one-time",
+    ],
+  ],
+  ["dueDate", "Due date", "date"],
+  ["expiryDate", "Expiry date", "date"],
+  ["renewalDate", "Renewal date", "date"],
+  [
+    "paymentStatus",
+    "Payment status",
+    "select",
+    ["unpaid", "paid", "autopay", "pending"],
+  ],
+  ["memo", "Memo", "text"],
+];
+const basicNames = [
+  "name",
+  "recordType",
+  "group",
+  "category",
+  "provider",
+  "status",
+  "tags",
+];
+const credentialNames = [
+  "username",
+  "password",
+  "pin",
+  "email",
+  "accountNumber",
+  "currentPlan",
+  "url",
+  "accountState",
+];
+const billNames = ["amount", "frequency", "dueDate", "paymentStatus"];
+const cycleLabels = {
+  none: "None",
+  monthly: "Monthly",
+  quarterly: "Quarterly / 3 mo",
+  "four-month": "Every 4 months",
+  semiannual: "Semiannual / 6 mo",
+  yearly: "Annual / yearly",
+  "one-time": "One time",
+  "not-applicable": "Not applicable",
+  "active-current": "Active / current",
+  inactive: "Inactive",
+  financed: "Financed",
+  "paid-off": "Paid off",
+  "owned-outright": "Owned outright",
+  "leased-rented": "Leased / rented",
+  "sold-transferred": "Sold / transferred",
+  autopay: "Autopay",
+  cancelled: "Cancelled",
+  "switched-provider": "Switched provider",
+  closed: "Closed",
+};
+function fieldMarkup([name, label, type, options]) {
+  return `<label class="field-label">${E(label)}${type === "select" ? `<select name="${name}">${options.map((o) => `<option value="${o}">${E(cycleLabels[o] || o)}</option>`).join("")}</select>` : `<input name="${name}" type="${type}" ${name === "name" ? 'required maxlength="150"' : ""} ${type === "number" ? 'min="0" step="0.01"' : ""} autocomplete="off">`}</label>`;
+}
+const accountStateProfiles = {
+  asset: [
+    "not-applicable",
+    "financed",
+    "paid-off",
+    "owned-outright",
+    "leased-rented",
+    "sold-transferred",
+  ],
+  service: [
+    "not-applicable",
+    "active-current",
+    "autopay",
+    "cancelled",
+    "switched-provider",
+    "closed",
+  ],
+  account: ["not-applicable", "active-current", "inactive", "closed"],
+};
+function accountStateProfile() {
+  const form = $("#recordForm"),
+    category = String(form.elements.category.value || "").toLowerCase(),
+    text = [
+      form.elements.name.value,
+      form.elements.provider.value,
+      form.elements.group.value,
+    ]
+      .join(" ")
+      .toLowerCase();
+  if (
+    category === "mortgage" ||
+    /(car|vehicle|auto|house|home|mortgage|property|loan)/.test(text)
+  )
+    return "asset";
+  if (
+    ["phone", "internet", "utilities", "insurance", "subscription"].includes(
+      category,
+    ) ||
+    /(verizon|wireless|utility|electric|water|internet|insurance|subscription)/.test(
+      text,
+    )
+  )
+    return "service";
+  return "account";
+}
+function updateAccountStateOptions() {
+  const select = $("#recordForm").elements.accountState,
+    current = select.value || "not-applicable",
+    profile = accountStateProfile(),
+    options = [...accountStateProfiles[profile]];
+  if (current && !options.includes(current)) options.push(current);
+  select.innerHTML = options
+    .map(
+      (value) =>
+        `<option value="${value}">${E(cycleLabels[value] || value)}</option>`,
+    )
+    .join("");
+  select.value = options.includes(current) ? current : "not-applicable";
+  select.dataset.profile = profile;
+}
+for (const [selector, names] of [
+  ["#fields", basicNames],
+  ["#credentialFields", credentialNames],
+  ["#billingFields", billNames],
+])
+  $(selector).innerHTML = names
+    .map((name) => fieldMarkup(fields.find((f) => f[0] === name)))
+    .join("");
+$("#dateFields").innerHTML = fields
+  .filter(
+    (f) =>
+      !basicNames.includes(f[0]) &&
+      !credentialNames.includes(f[0]) &&
+      !billNames.includes(f[0]),
+  )
+  .map(fieldMarkup)
+  .join("");
+function setRecordSections() {
+  const isBill = $("#recordForm").elements.recordType.value === "bill";
+  $("#billingSection").hidden = !isBill;
+  $("#credentialsSection").open = !isBill;
+}
+$("#recordForm").elements.recordType.addEventListener("change", () => {
+  if (
+    $("#recordForm").elements.recordType.value === "bill" &&
+    $("#recordForm").elements.frequency.value === "none"
+  )
+    $("#recordForm").elements.frequency.value = "monthly";
+  setRecordSections();
+});
+for (const name of ["name", "category", "provider", "group"])
+  $("#recordForm").elements[name].addEventListener(
+    "input",
+    updateAccountStateOptions,
+  );
 
-function edit(id,type='account',draft){const r=draft||data.records.find(r=>r.id===id)||{recordType:type,status:'active',category:type==='bill'?'Other':'Account',frequency:type==='bill'?'monthly':'none',paymentStatus:'unpaid',amount:0};$('#recordForm').reset();for(const [k,v]of Object.entries(r)){const el=$('#recordForm').elements.namedItem(k);if(el)el.value=v;}$('#delete').hidden=!id;$('#editorTitle').textContent=id?'Edit record':'အသစ်ထည့်ရန်';setRecordSections();$('#editor').showModal();attachHelp();}
-$('#recordForm').onsubmit=e=>{e.preventDefault();run(async()=>{const r=Object.fromEntries(new FormData(e.target));r.id=r.id||crypto.randomUUID();r.amount=Number(r.amount);const old=data.records.find(x=>x.id===r.id);r.favorite=old?.favorite||false;r.isExample=false;r.createdAt=old?.createdAt||new Date().toISOString();r.updatedAt=new Date().toISOString();const next=structuredClone(data);const index=next.records.findIndex(x=>x.id===r.id);if(index<0)next.records.push(r);else next.records[index]=r;await commit(next);$('#editor').close();e.target.reset();});};
-function deleteRecord(id){run(async()=>{if(!confirm('ဤ record နှင့် ဆက်စပ် payment history ကို အပြီးဖျက်မည်။ ဆက်လုပ်မလား?'))return;const next=structuredClone(data);next.records=next.records.filter(r=>r.id!==id);next.payments=next.payments.filter(p=>p.recordId!==id);await commit(next);$('#editor').close();$('#recordForm').reset();});}
-$('#delete').onclick=()=>deleteRecord($('#recordForm').elements.id.value);
-$('#content').onclick=e=>{const b=e.target.closest('button[data-action]');if(!b)return;const r=data.records.find(r=>r.id===b.dataset.id);if(b.dataset.action==='deleteRecord')return deleteRecord(r.id);if(b.dataset.action==='duplicate'){const draft={...r,id:'',name:r.name+' (copy)'};delete draft.sampleKey;return edit(undefined,r.recordType,draft);}if(b.dataset.action==='pay')return openPayment(r);if(b.dataset.action==='emptyAdd')return edit();if(b.dataset.action==='edit'){if(r)return edit(r.id);return editDocument(b.dataset.id);}if(b.dataset.action.startsWith('doc'))return documentAction(b.dataset.action,b.dataset.id);if(b.dataset.action==='reveal'){const out=b.parentElement.querySelector('.password');out.textContent=out.textContent?'':r.password||'—';b.textContent=out.textContent?'Hide password':'Show password';return;}run(async()=>{const next=structuredClone(data);const record=next.records.find(x=>x.id===b.dataset.id);if(b.dataset.action==='favorite')record.favorite=!record.favorite;if(b.dataset.action==='archive')record.status=record.status==='archived'?'active':'archived';if(b.dataset.action==='removePayment'){if(!confirm('Delete this payment history entry? Due date will not be changed.'))return;next.payments=next.payments.filter(p=>p.id!==b.dataset.id);}await commit(next);});};
-$('#cancel').onclick=()=>{$('#editor').close();$('#recordForm').reset();};$('#editor').addEventListener('close',()=>$('#recordForm').reset());$('#add').onclick=()=>edit();$('#addBill').onclick=()=>edit(undefined,'bill');$('#lock').onclick=lock;$('#logout').onclick=()=>run(async()=>{lock();googleToken='';await signOut(auth);});
-$('#refresh').onclick=()=>run(async()=>{const g=generation;const fresh=await api('load');const next=normalize(await unseal(fresh.box,key));if(g!==generation)return;snapshot=fresh;data=next;await ensureDocumentKey();render();message('Latest data loaded.');});
-for(const s of ['#search','#status','#category','#groupFilter','#favoriteFilter','#recordType','#sortOrder'])$(s).addEventListener('input',render);
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{view=b.dataset.view;document.querySelectorAll('nav button').forEach(n=>n.classList.toggle('selected',n===b));render();});
-$('#unlockForm').onsubmit=e=>{e.preventDefault();run(async()=>{const g=generation;const fresh=await api('load');const pass=$('#passphrase').value,confirmation=$('#confirmPass').value;$('#passphrase').value='';$('#confirmPass').value='';if(pass.length<16)throw Error('Passphrase must contain at least 16 characters.');const newKey=await deriveKey(pass,fresh.salt);let next;if(fresh.box){try{next=normalize(await unseal(fresh.box,newKey));}catch{throw Error('Passphrase မမှန်ပါ သို့မဟုတ် backup ပျက်နေပါသည်။');}}else{if(pass!==confirmation)throw Error('Passphrase နှစ်ခု မတူပါ။');if(!confirm('Vault အသစ်စတင်မည်။ ကိုယ်ပိုင် passphrase ကို လုံခြုံစွာမှတ်ထားပါ။ မေ့လျှင် data ပြန်မရနိုင်ပါ။'))return;next=initialData();}if(g!==generation)return;key=newKey;snapshot=fresh;data=next;await ensureDocumentKey();if(g!==generation)return;if(!fresh.box)await commit(next);if(g!==generation)return;if(!data.records.length&&!data.settings.examplesAdded)await commit(addExamples(data,today()));if(g!==generation)return;lastActivity=Date.now();$('#confirmLabel').hidden=true;$('#gate').hidden=true;$('#workspace').hidden=false;$('#lock').hidden=false;$('#identity').textContent=user.email+' • Google Sheets + encrypted Drive';render();message('Vault unlocked.');});};
-$('#backup').onclick=()=>run(async()=>{const backup={format:'family-vault-backup-v2',owner:user.uid,salt:snapshot.salt,box:await seal(data,key)};const url=URL.createObjectURL(new Blob([JSON.stringify(backup)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`family-vault-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
-function backupPassword(){return new Promise(resolve=>{const dialog=$('#backupPrompt');$('#backupPass').value='';$('#backupPassForm').onsubmit=e=>{e.preventDefault();const value=$('#backupPass').value;$('#backupPass').value='';dialog.onclose=null;dialog.close();resolve(value);};dialog.onclose=()=>{ $('#backupPass').value='';resolve(null);};$('#backupCancel').onclick=()=>dialog.close();dialog.showModal();$('#backupPassForm button:last-child').disabled=false;$('#backupCancel').disabled=false;});}
-$('#restore').onchange=e=>run(async()=>{const file=e.target.files[0];e.target.value='';if(!file)return;if(file.size>2000000)throw Error('Backup too large');const b=JSON.parse(await file.text());if(!['family-vault-backup-v1','family-vault-backup-v2'].includes(b.format))throw Error('Invalid backup');const g=generation;const pass=await backupPassword();if(pass===null||g!==generation)return;const restored=normalize(await unseal(b.box,await deriveKey(pass,b.salt)));if(restored.documents.length&&b.owner!==user.uid)throw Error('Document backup restore requires the original Google account.');if(!Array.isArray(restored.records)||!Array.isArray(restored.payments))throw Error('Invalid backup data');if(g!==generation)return;if(confirm('လက်ရှိ vault data အားလုံးကို backup ဖြင့် အစားထိုးမည်။ ဆက်လုပ်မလား?')){if(restored.documentKey){const raw=await unseal(restored.documentKey,await deriveKey(pass,b.salt));restored.documentKey=await seal(raw,key);}await commit(restored);await ensureDocumentKey();}});
-function checkAlerts(){if(!key||!('Notification'in window)||Notification.permission!=='granted')return;const now=today();for(const e of allEvents(data).filter(e=>e.date<=now)){const id=`${e.id}:${e.kind}:${e.date}:${now}`;if(!notified.has(id)){new Notification('Family Vault reminder',{body:'Vault ထဲတွင် စစ်ဆေးရန် due / renewal / expiry ရှိပါသည်။',icon:'/icon.svg'});notified.add(id);}}}
-$('#notifications').onclick=()=>run(async()=>{if(!('Notification'in window))throw Error('Browser notifications unavailable; use email reminders.');await Notification.requestPermission();checkAlerts();message('Browser alerts only work while the app is open. Email reminders work in the background.');});
-for(const event of ['pointerdown','keydown','touchstart'])document.addEventListener(event,()=>lastActivity=Date.now(),{passive:true});setInterval(()=>{if(key&&Date.now()-lastActivity>config.idleMinutes*60000)lock();},10000);document.addEventListener('visibilitychange',()=>{if(document.hidden&&key)lock();});
-try{if(config.firebase.apiKey.startsWith('YOUR_'))throw Error('Setup လိုအပ်ပါသည်။ README.my.md အတိုင်း Firebase config နှင့် backend ကို ပြင်ဆင်ပါ။');auth=getAuth(initializeApp(config.firebase));await setPersistence(auth,inMemoryPersistence);$('#login').onclick=()=>run(async()=>{const provider=new GoogleAuthProvider();provider.addScope('https://www.googleapis.com/auth/drive.file');provider.setCustomParameters({prompt:'select_account'});const result=await signInWithPopup(auth,provider);user=result.user;googleToken=GoogleAuthProvider.credentialFromResult(result)?.accessToken||'';try{const loaded=await api('load');$('#confirmLabel').hidden=!!loaded.box;$('#setupHint').textContent=loaded.box?'သင့် personal vault passphrase ဖြင့်ဖွင့်ပါ။':'ပထမဆုံးအသုံးပြုခြင်း — shared မဟုတ်သော ကိုယ်ပိုင် passphrase အသစ်သတ်မှတ်ပါ။';$('#login').hidden=true;$('#unlockForm').hidden=false;message('သင့် Gmail နှင့် ကိုယ်ပိုင် Drive ချိတ်ဆက်ပြီးပါပြီ။');}catch(error){googleToken='';await signOut(auth);throw error;}});onAuthStateChanged(auth,u=>{lock();user=u;$('#logout').hidden=!u;if(!u){googleToken='';$('#login').hidden=false;$('#unlockForm').hidden=true;}});}catch(e){message(e.message);$('#login').disabled=true;}
-if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>message('PWA installation unavailable in this browser.'));
+function edit(id, type = "account", draft) {
+  const r = draft ||
+    data.records.find((r) => r.id === id) || {
+      recordType: type,
+      status: "active",
+      category: type === "bill" ? "Other" : "Account",
+      frequency: type === "bill" ? "monthly" : "none",
+      paymentStatus: "unpaid",
+      accountState: "not-applicable",
+      amount: 0,
+    };
+  $("#recordForm").reset();
+  for (const [k, v] of Object.entries(r)) {
+    const el = $("#recordForm").elements.namedItem(k);
+    if (el) el.value = v;
+  }
+  $("#delete").hidden = !id;
+  $("#editorTitle").textContent = id ? "Edit record" : "အသစ်ထည့်ရန်";
+  updateAccountStateOptions();
+  setRecordSections();
+  $("#editor").showModal();
+  attachHelp();
+}
+$("#recordForm").onsubmit = (e) => {
+  e.preventDefault();
+  run(async () => {
+    const r = Object.fromEntries(new FormData(e.target));
+    r.id = r.id || crypto.randomUUID();
+    r.amount = Number(r.amount);
+    const old = data.records.find((x) => x.id === r.id);
+    r.favorite = old?.favorite || false;
+    r.isExample = false;
+    r.createdAt = old?.createdAt || new Date().toISOString();
+    r.updatedAt = new Date().toISOString();
+    const next = structuredClone(data);
+    const index = next.records.findIndex((x) => x.id === r.id);
+    if (index < 0) next.records.push(r);
+    else next.records[index] = r;
+    await commit(next);
+    $("#editor").close();
+    e.target.reset();
+  });
+};
+function deleteRecord(id) {
+  run(async () => {
+    if (
+      !confirm(
+        "ဤ record နှင့် ဆက်စပ် payment history ကို အပြီးဖျက်မည်။ ဆက်လုပ်မလား?",
+      )
+    )
+      return;
+    const next = structuredClone(data);
+    next.records = next.records.filter((r) => r.id !== id);
+    next.payments = next.payments.filter((p) => p.recordId !== id);
+    await commit(next);
+    $("#editor").close();
+    $("#recordForm").reset();
+  });
+}
+$("#delete").onclick = () => deleteRecord($("#recordForm").elements.id.value);
+$("#content").onclick = (e) => {
+  const b = e.target.closest("button[data-action]");
+  if (!b) return;
+  if (b.dataset.action === "docFilter") {
+    documentTypeFilter = b.dataset.kind;
+    renderDocuments();
+    return;
+  }
+  if (b.dataset.action === "docPurgeExpired") {
+    purgeExpiredDocuments();
+    return;
+  }
+  const r = data.records.find((r) => r.id === b.dataset.id);
+  if (b.dataset.action === "deleteRecord") return deleteRecord(r.id);
+  if (b.dataset.action === "duplicate") {
+    const draft = { ...r, id: "", name: r.name + " (copy)" };
+    delete draft.sampleKey;
+    return edit(undefined, r.recordType, draft);
+  }
+  if (b.dataset.action === "pay") return openPayment(r);
+  if (b.dataset.action === "emptyAdd") return edit();
+  if (b.dataset.action === "edit") {
+    if (r) return edit(r.id);
+    return editDocument(b.dataset.id);
+  }
+  if (b.dataset.action.startsWith("doc"))
+    return documentAction(b.dataset.action, b.dataset.id);
+  if (b.dataset.action === "reveal") {
+    const out = b.parentElement.querySelector(".password");
+    out.textContent = out.textContent ? "" : r.password || "—";
+    b.textContent = out.textContent ? "Hide password" : "Show password";
+    return;
+  }
+  run(async () => {
+    const next = structuredClone(data);
+    const record = next.records.find((x) => x.id === b.dataset.id);
+    if (b.dataset.action === "favorite") record.favorite = !record.favorite;
+    if (b.dataset.action === "archive")
+      record.status = record.status === "archived" ? "active" : "archived";
+    if (b.dataset.action === "removePayment") {
+      if (
+        !confirm(
+          "Delete this payment history entry? Due date will not be changed.",
+        )
+      )
+        return;
+      next.payments = next.payments.filter((p) => p.id !== b.dataset.id);
+    }
+    await commit(next);
+  });
+};
+$("#cancel").onclick = () => {
+  $("#editor").close();
+  $("#recordForm").reset();
+};
+$("#editor").addEventListener("close", () => $("#recordForm").reset());
+$("#add").onclick = () => edit();
+$("#addBill").onclick = () => edit(undefined, "bill");
+$("#lock").onclick = lock;
+$("#logout").onclick = () =>
+  run(async () => {
+    lock();
+    googleToken = "";
+    await signOut(auth);
+  });
+$("#refresh").onclick = () =>
+  run(async () => {
+    const g = generation;
+    const fresh = await api("load");
+    const next = normalize(await unseal(fresh.box, key));
+    if (g !== generation) return;
+    snapshot = fresh;
+    data = next;
+    await ensureDocumentKey();
+    render();
+    message("Latest data loaded.");
+  });
+for (const s of [
+  "#search",
+  "#status",
+  "#category",
+  "#groupFilter",
+  "#favoriteFilter",
+  "#recordType",
+  "#sortOrder",
+])
+  $(s).addEventListener("input", render);
+document.querySelectorAll("nav button").forEach(
+  (b) =>
+    (b.onclick = () => {
+      view = b.dataset.view;
+      document
+        .querySelectorAll("nav button")
+        .forEach((n) => n.classList.toggle("selected", n === b));
+      render();
+    }),
+);
+$("#unlockForm").onsubmit = (e) => {
+  e.preventDefault();
+  run(async () => {
+    const g = generation;
+    const fresh = await api("load");
+    const pass = $("#passphrase").value,
+      confirmation = $("#confirmPass").value;
+    $("#passphrase").value = "";
+    $("#confirmPass").value = "";
+    if (pass.length < 16)
+      throw Error("Passphrase must contain at least 16 characters.");
+    const newKey = await deriveKey(pass, fresh.salt);
+    let next;
+    if (fresh.box) {
+      try {
+        next = normalize(await unseal(fresh.box, newKey));
+      } catch {
+        throw Error("Passphrase မမှန်ပါ သို့မဟုတ် backup ပျက်နေပါသည်။");
+      }
+    } else {
+      if (pass !== confirmation) throw Error("Passphrase နှစ်ခု မတူပါ။");
+      if (
+        !confirm(
+          "Vault အသစ်စတင်မည်။ ကိုယ်ပိုင် passphrase ကို လုံခြုံစွာမှတ်ထားပါ။ မေ့လျှင် data ပြန်မရနိုင်ပါ။",
+        )
+      )
+        return;
+      next = initialData();
+    }
+    if (g !== generation) return;
+    key = newKey;
+    snapshot = fresh;
+    data = next;
+    await ensureDocumentKey();
+    if (g !== generation) return;
+    if (!fresh.box) await commit(next);
+    if (g !== generation) return;
+    if (!data.records.length && !data.settings.examplesAdded)
+      await commit(addExamples(data, today()));
+    if (g !== generation) return;
+    lastActivity = Date.now();
+    $("#confirmLabel").hidden = true;
+    $("#gate").hidden = true;
+    $("#workspace").hidden = false;
+    $("#lock").hidden = false;
+    $("#identity").textContent =
+      user.email + " • Google Sheets + encrypted Drive";
+    render();
+    message("Vault unlocked.");
+  });
+};
+$("#backup").onclick = () =>
+  run(async () => {
+    const backup = {
+      format: "family-vault-backup-v2",
+      owner: user.uid,
+      salt: snapshot.salt,
+      box: await seal(data, key),
+    };
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(backup)], { type: "application/json" }),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `family-vault-${today()}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+function backupPassword() {
+  return new Promise((resolve) => {
+    const dialog = $("#backupPrompt");
+    $("#backupPass").value = "";
+    $("#backupPassForm").onsubmit = (e) => {
+      e.preventDefault();
+      const value = $("#backupPass").value;
+      $("#backupPass").value = "";
+      dialog.onclose = null;
+      dialog.close();
+      resolve(value);
+    };
+    dialog.onclose = () => {
+      $("#backupPass").value = "";
+      resolve(null);
+    };
+    $("#backupCancel").onclick = () => dialog.close();
+    dialog.showModal();
+    $("#backupPassForm button:last-child").disabled = false;
+    $("#backupCancel").disabled = false;
+  });
+}
+$("#restore").onchange = (e) =>
+  run(async () => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 2000000) throw Error("Backup too large");
+    const b = JSON.parse(await file.text());
+    if (
+      !["family-vault-backup-v1", "family-vault-backup-v2"].includes(b.format)
+    )
+      throw Error("Invalid backup");
+    const g = generation;
+    const pass = await backupPassword();
+    if (pass === null || g !== generation) return;
+    const restored = normalize(
+      await unseal(b.box, await deriveKey(pass, b.salt)),
+    );
+    if (restored.documents.length && b.owner !== user.uid)
+      throw Error(
+        "Document backup restore requires the original Google account.",
+      );
+    if (!Array.isArray(restored.records) || !Array.isArray(restored.payments))
+      throw Error("Invalid backup data");
+    if (g !== generation) return;
+    if (
+      confirm(
+        "လက်ရှိ vault data အားလုံးကို backup ဖြင့် အစားထိုးမည်။ ဆက်လုပ်မလား?",
+      )
+    ) {
+      if (restored.documentKey) {
+        const raw = await unseal(
+          restored.documentKey,
+          await deriveKey(pass, b.salt),
+        );
+        restored.documentKey = await seal(raw, key);
+      }
+      await commit(restored);
+      await ensureDocumentKey();
+    }
+  });
+function checkAlerts() {
+  if (
+    !key ||
+    !("Notification" in window) ||
+    Notification.permission !== "granted"
+  )
+    return;
+  const now = today();
+  for (const e of allEvents(data).filter((e) => e.date <= now)) {
+    const id = `${e.id}:${e.kind}:${e.date}:${now}`;
+    if (!notified.has(id)) {
+      new Notification("Family Vault reminder", {
+        body: "Vault ထဲတွင် စစ်ဆေးရန် due / renewal / expiry ရှိပါသည်။",
+        icon: "/icon.svg",
+      });
+      notified.add(id);
+    }
+  }
+}
+$("#notifications").onclick = () =>
+  run(async () => {
+    if (!("Notification" in window))
+      throw Error("Browser notifications unavailable; use email reminders.");
+    await Notification.requestPermission();
+    checkAlerts();
+    message(
+      "Browser alerts only work while the app is open. Email reminders work in the background.",
+    );
+  });
+for (const event of ["pointerdown", "keydown", "touchstart"])
+  document.addEventListener(event, () => (lastActivity = Date.now()), {
+    passive: true,
+  });
+setInterval(() => {
+  if (key && Date.now() - lastActivity > config.idleMinutes * 60000) lock();
+}, 10000);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && key) lock();
+});
+try {
+  if (config.firebase.apiKey.startsWith("YOUR_"))
+    throw Error(
+      "Setup လိုအပ်ပါသည်။ README.my.md အတိုင်း Firebase config နှင့် backend ကို ပြင်ဆင်ပါ။",
+    );
+  auth = getAuth(initializeApp(config.firebase));
+  await setPersistence(auth, inMemoryPersistence);
+  $("#login").onclick = () =>
+    run(async () => {
+      const provider = new GoogleAuthProvider();
+      provider.addScope("https://www.googleapis.com/auth/drive.file");
+      provider.setCustomParameters({ prompt: "select_account" });
+      const result = await signInWithPopup(auth, provider);
+      user = result.user;
+      googleToken =
+        GoogleAuthProvider.credentialFromResult(result)?.accessToken || "";
+      try {
+        const loaded = await api("load");
+        $("#confirmLabel").hidden = !!loaded.box;
+        $("#setupHint").textContent = loaded.box
+          ? "သင့် personal vault passphrase ဖြင့်ဖွင့်ပါ။"
+          : "ပထမဆုံးအသုံးပြုခြင်း — shared မဟုတ်သော ကိုယ်ပိုင် passphrase အသစ်သတ်မှတ်ပါ။";
+        $("#login").hidden = true;
+        $("#unlockForm").hidden = false;
+        message("သင့် Gmail နှင့် ကိုယ်ပိုင် Drive ချိတ်ဆက်ပြီးပါပြီ။");
+      } catch (error) {
+        googleToken = "";
+        await signOut(auth);
+        throw error;
+      }
+    });
+  onAuthStateChanged(auth, (u) => {
+    lock();
+    user = u;
+    $("#logout").hidden = !u;
+    if (!u) {
+      googleToken = "";
+      $("#login").hidden = false;
+      $("#unlockForm").hidden = true;
+    }
+  });
+} catch (e) {
+  message(e.message);
+  $("#login").disabled = true;
+}
+if ("serviceWorker" in navigator)
+  navigator.serviceWorker
+    .register("/sw.js")
+    .catch(() => message("PWA installation unavailable in this browser."));
 
-async function ensureDocumentKey(){if(!key)return;const g=generation,current=data,currentKey=key;let raw,wrapped=current.documentKey;if(wrapped)raw=await unseal(wrapped,currentKey);else{raw=to64(crypto.getRandomValues(new Uint8Array(32)));wrapped=await seal(raw,currentKey);}const imported=await crypto.subtle.importKey('raw',from64(raw),{name:'AES-GCM'},false,['encrypt','decrypt']);if(g!==generation)return;current.documentKey=wrapped;docKey=imported;}
-function groupOptions(selected='',all=false){return `${all?'<option value="all">All groups</option>':'<option value="">Ungrouped</option>'}`+data.groups.map(g=>`<option value="${E(g)}" ${g===selected?'selected':''}>${E(g)}</option>`).join('');}
-function refreshGroups(){refreshCategories();const value=$('#groupFilter').value;$('#groupFilter').innerHTML=groupOptions(value,true);if(![...$('#groupFilter').options].some(o=>o.value===value))$('#groupFilter').value='all';const field=$('#recordForm').elements.namedItem('group');if(!$('#editor').open)field.innerHTML=groupOptions();}
-function matchesDocument(d){const q=$('#search').value.toLowerCase();return ($('#status').value==='all'||d.status===$('#status').value)&&($('#groupFilter').value==='all'||d.group===$('#groupFilter').value)&&($('#favoriteFilter').value==='all'||d.favorite)&&[d.name,d.tags,d.memo,d.group,d.originalName].join(' ').toLowerCase().includes(q);}
-function renderDocuments(){$('#content').innerHTML=`<p class="muted">File content နှင့် original filename ကို encrypt လုပ်ထားသည်။ Search သည် name, tags, group, memo ကိုသာရှာသည်။</p><div class="cards">${data.documents.filter(matchesDocument).map(d=>`<article class="card"><span class="tag">${E(d.group||'Ungrouped')} · ${E(d.status)}</span><h3>${d.favorite?'★ ':''}${E(d.name)}</h3><p>${E(d.originalName)} · ${(d.size/1024).toFixed(0)} KB</p><p class="muted">${E(d.tags)}<br>Expiry: ${E(d.expiryDate||'—')}<br>${E(d.memo)}</p>${d.recordId?`<p>Linked: ${E(data.records.find(r=>r.id===d.recordId)?.name||'Deleted record')}</p>`:''}<button data-action="docDownload" data-id="${E(d.id)}">Download</button><button data-action="docEncrypted" data-id="${E(d.id)}">Encrypted copy</button><button data-action="edit" data-id="${E(d.id)}">Edit</button><button data-action="docFavorite" data-id="${E(d.id)}">${d.favorite?'★':'☆'}</button><button data-action="docDelete" data-id="${E(d.id)}" class="danger">Trash</button></article>`).join('')}</div>`;}
-function editDocument(id){const d=data.documents.find(x=>x.id===id)||{status:'active'};$('#docForm').reset();$('#docForm').elements.group.innerHTML=groupOptions(d.group);$('#docForm').elements.recordId.innerHTML='<option value="">None</option>'+data.records.map(r=>`<option value="${E(r.id)}">${E(r.name)}</option>`).join('');for(const [k,v]of Object.entries(d)){const el=$('#docForm').elements.namedItem(k);if(el&&k!=='file')el.value=v;}$('#docForm').elements.file.required=!id;$('#docForm').elements.file.hidden=!!id;$('#docEditor').showModal();attachHelp();}
-$('#addDocument').onclick=()=>editDocument();$('#docCancel').onclick=()=>$('#docEditor').close();$('#docEditor').addEventListener('close',()=>$('#docForm').reset());
-const safeTypes={pdf:'application/pdf',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',txt:'text/plain',csv:'text/csv'};
-$('#docForm').onsubmit=e=>{e.preventDefault();run(async()=>{const g=generation;const values=Object.fromEntries(new FormData(e.target));const existing=data.documents.find(d=>d.id===values.id);const next=structuredClone(data);if(existing){const d=next.documents.find(d=>d.id===values.id);for(const k of ['name','group','status','expiryDate','tags','recordId','memo'])d[k]=String(values[k]||'');}else{const file=e.target.elements.file.files[0];if(!file||file.size>config.maxDocumentBytes)throw Error('Document must be 3 MiB or smaller');const ext=file.name.split('.').pop().toLowerCase();if(!safeTypes[ext])throw Error('Unsupported document type');const box=await sealBytes(new Uint8Array(await file.arrayBuffer()),docKey);if(g!==generation)return;const uploaded=await api('uploadDocument',{box});if(g!==generation)return;next.documents.push({id:crypto.randomUUID(),fileId:uploaded.fileId,name:values.name,group:values.group,status:values.status,expiryDate:values.expiryDate,tags:values.tags,recordId:values.recordId,memo:values.memo,originalName:file.name,mimeType:safeTypes[ext],size:file.size,favorite:false,createdAt:new Date().toISOString()});}await commit(next);$('#docEditor').close();e.target.reset();});};
-function download(value,name,mime){const blob=value instanceof Blob?value:new Blob([value],{type:mime});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name.replace(/[\x00-\x1f\\/]/g,'_');a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-function documentAction(action,id){run(async()=>{const d=data.documents.find(x=>x.id===id);if(!d)return;const g=generation;if(['docDownload','docEncrypted'].includes(action)){const result=await api('downloadDocument',{fileId:d.fileId});if(g!==generation)return;if(action==='docEncrypted'){download(JSON.stringify({format:'family-vault-document-v1',box:result.box}),'document-'+d.id+'.fvdoc','application/json');return;}const bytes=await unsealBytes(result.box,docKey);if(g!==generation)return;download(bytes,d.originalName,'application/octet-stream');return;}const next=structuredClone(data);if(action==='docFavorite')next.documents.find(x=>x.id===id).favorite=!d.favorite;if(action==='docDelete'){if(!confirm('Document ကို vault မှဖယ်ပြီး Drive Trash သို့ရွှေ့မည်။ ဆက်လုပ်မလား?'))return;next.documents=next.documents.filter(x=>x.id!==id);}await commit(next);if(action==='docDelete')try{await api('trashDocument',{fileId:d.fileId});}catch(error){message('Vault မှဖယ်ပြီးပါပြီ။ Drive trash မပြီးပါ: '+error.message+' File ID: '+d.fileId);}});}
-function renderSettings(){for(const [selector,kind,values]of [['#groupsList','group',data.groups],['#categoriesList','category',categories(data)]])$(selector).innerHTML=values.map(name=>{const count=[...data.records,...(kind==='group'?data.documents:[])].filter(r=>r[kind]===name).length;return `<div class="organizer-row"><div><strong>${E(name)}</strong><small>${count} items</small></div>${kind==='category'&&name==='Other'?'<span class="muted">Fallback</span>':`<div><button data-organizer="${kind}" data-name="${E(name)}" data-mode="rename">Rename</button><button data-organizer="${kind}" data-name="${E(name)}" data-mode="remove">Remove</button></div>`}</div>`;}).join('');$('#emailOptIn').checked=data.settings.emailReminders===true;$('#driveInfo').innerHTML=`သင့် Gmail ပိုင် <a href="https://drive.google.com/drive/folders/${E(snapshot.folderId)}" target="_blank" rel="noopener noreferrer">Private Drive folder</a> · <a href="https://docs.google.com/spreadsheets/d/${E(snapshot.sheetId)}/edit" target="_blank" rel="noopener noreferrer">Encrypted Google Sheet</a>`;}
+async function ensureDocumentKey() {
+  if (!key) return;
+  const g = generation,
+    current = data,
+    currentKey = key;
+  let raw,
+    wrapped = current.documentKey;
+  if (wrapped) raw = await unseal(wrapped, currentKey);
+  else {
+    raw = to64(crypto.getRandomValues(new Uint8Array(32)));
+    wrapped = await seal(raw, currentKey);
+  }
+  const imported = await crypto.subtle.importKey(
+    "raw",
+    from64(raw),
+    { name: "AES-GCM" },
+    false,
+    ["encrypt", "decrypt"],
+  );
+  if (g !== generation) return;
+  current.documentKey = wrapped;
+  docKey = imported;
+}
+function groupOptions(selected = "", all = false) {
+  return (
+    `${all ? '<option value="all">All groups</option>' : '<option value="">Ungrouped</option>'}` +
+    data.groups
+      .map(
+        (g) =>
+          `<option value="${E(g)}" ${g === selected ? "selected" : ""}>${E(g)}</option>`,
+      )
+      .join("")
+  );
+}
+function refreshGroups() {
+  refreshCategories();
+  const value = $("#groupFilter").value;
+  $("#groupFilter").innerHTML = groupOptions(value, true);
+  if (![...$("#groupFilter").options].some((o) => o.value === value))
+    $("#groupFilter").value = "all";
+  const field = $("#recordForm").elements.namedItem("group");
+  if (!$("#editor").open) field.innerHTML = groupOptions();
+}
+function documentSearchMatches(d) {
+  const q = $("#search").value.toLowerCase();
+  return (
+    ($("#groupFilter").value === "all" ||
+      d.group === $("#groupFilter").value) &&
+    ($("#favoriteFilter").value === "all" || d.favorite) &&
+    [d.name, d.tags, d.memo, d.group, d.originalName]
+      .join(" ")
+      .toLowerCase()
+      .includes(q)
+  );
+}
+function matchesDocument(d) {
+  return (
+    d.status !== "trashed" &&
+    ($("#status").value === "all" || d.status === $("#status").value) &&
+    documentSearchMatches(d)
+  );
+}
+function documentKind(d) {
+  const mime = String(d.mimeType || "").toLowerCase(),
+    name = String(d.originalName || "").toLowerCase();
+  if (mime.startsWith("image/")) return "image";
+  if (mime === "application/pdf" || name.endsWith(".pdf")) return "pdf";
+  if (mime.includes("wordprocessingml") || name.endsWith(".docx"))
+    return "word";
+  if (mime.includes("spreadsheetml") || name.endsWith(".xlsx")) return "excel";
+  if (
+    mime.startsWith("text/") ||
+    name.endsWith(".txt") ||
+    name.endsWith(".csv")
+  )
+    return "text";
+  return "other";
+}
+const documentKinds = {
+  all: ["All files", "▦"],
+  image: ["Images", "▧"],
+  pdf: ["PDF", "PDF"],
+  word: ["Word", "W"],
+  excel: ["Excel", "X"],
+  text: ["Text / CSV", "T"],
+  other: ["Other", "◇"],
+  trash: ["Trash", "♲"],
+};
+function documentIcon(kind) {
+  return (
+    { image: "▧", pdf: "PDF", word: "W", excel: "X", text: "T", other: "◇" }[
+      kind
+    ] || "◇"
+  );
+}
+function trashRetention(d) {
+  const deleted = new Date(d.deletedAt || 0).getTime(),
+    age = deleted ? Math.max(0, Date.now() - deleted) : 0,
+    days = Math.max(0, 30 - Math.floor(age / 86400000));
+  return { expired: !!deleted && age >= 30 * 86400000, days };
+}
+function clearDocumentUrls() {
+  for (const url of thumbnailUrls) URL.revokeObjectURL(url);
+  thumbnailUrls.clear();
+}
+async function documentBytes(d) {
+  const result = await api("downloadDocument", { fileId: d.fileId });
+  return unsealBytes(result.box, docKey);
+}
+function renderDocuments() {
+  clearDocumentUrls();
+  const regular = data.documents.filter(matchesDocument),
+    trash = data.documents.filter(
+      (d) => d.status === "trashed" && documentSearchMatches(d),
+    ),
+    matched = documentTypeFilter === "trash" ? trash : regular,
+    visible =
+      documentTypeFilter === "all" || documentTypeFilter === "trash"
+        ? matched
+        : matched.filter((d) => documentKind(d) === documentTypeFilter);
+  $("#resultCount").textContent = `${visible.length} documents`;
+  const kinds = [
+    "all",
+    "image",
+    "pdf",
+    "word",
+    "excel",
+    "text",
+    "other",
+    "trash",
+  ];
+  const expired = trash.filter((d) => trashRetention(d).expired).length;
+  $("#content").innerHTML =
+    `<p class="muted">File content နှင့် original filename ကို encrypt လုပ်ထားသည်။ Preview ဖွင့်ချိန်တွင် browser memory ထဲမှာသာ decrypt လုပ်သည်။ Trash ထဲတွင် 30 ရက် review period ရှိပြီး အဲဒီအတွင်း Restore လုပ်နိုင်သည်။</p><div class="document-type-bar" role="group" aria-label="Document type">${kinds.map((kind) => `<button type="button" data-action="docFilter" data-kind="${kind}" aria-pressed="${documentTypeFilter === kind}">${documentKinds[kind][1]} ${documentKinds[kind][0]} · ${kind === "trash" ? trash.length : kind === "all" ? regular.length : regular.filter((d) => documentKind(d) === kind).length}</button>`).join("")}${documentTypeFilter === "trash" && expired ? `<button type="button" class="danger" data-action="docPurgeExpired">Delete expired · ${expired}</button>` : ""}</div><div class="cards">${visible
+      .map((d) => {
+        const kind = documentKind(d),
+          trashed = d.status === "trashed",
+          retention = trashed ? trashRetention(d) : null;
+        return `<article class="card doc-card doc-kind-${kind} ${trashed ? "doc-trashed" : ""}"><span class="tag">${E(d.group || "Ungrouped")} · ${E(d.status)}</span>${trashed ? `<span class="trash-retention ${retention.expired ? "expired" : ""}">${retention.expired ? "Expired — ready to delete" : retention.days + " days to restore"}</span>` : ""}<button type="button" class="doc-preview-trigger" data-action="docPreview" data-id="${E(d.id)}" aria-label="${E(d.name)} preview ဖွင့်ရန်"><span class="doc-thumbnail" data-thumbnail-id="${E(d.id)}"><span class="doc-file-icon">${documentIcon(kind)}</span><span class="doc-file-type">${E(documentKinds[kind][0])}</span></span></button><h3>${d.favorite ? "★ " : ""}${E(d.name)}</h3><p>${E(d.originalName)} · ${(d.size / 1024).toFixed(0)} KB</p><p class="muted">${E(d.tags)}<br>Expiry: ${E(d.expiryDate || "—")}<br>${E(d.memo)}</p>${trashed ? `<p class="doc-trash-note">Trash date: ${E(String(d.deletedAt || "").slice(0, 10) || "—")}</p>` : ""}${d.recordId ? `<p>Linked: ${E(data.records.find((r) => r.id === d.recordId)?.name || "Deleted record")}</p>` : ""}${trashed ? `<button data-action="docRestore" data-id="${E(d.id)}">Restore</button><button data-action="docPermanent" data-id="${E(d.id)}" class="danger">Delete permanently</button>` : `<button data-action="docDownload" data-id="${E(d.id)}">Download</button><button data-action="docEncrypted" data-id="${E(d.id)}">Encrypted copy</button><button data-action="edit" data-id="${E(d.id)}">Edit</button><button data-action="docFavorite" data-id="${E(d.id)}">${d.favorite ? "★" : "☆"}</button><button data-action="docDelete" data-id="${E(d.id)}" class="danger">Move to Trash</button>`}</article>`;
+      })
+      .join("")}</div>`;
+  loadImageThumbnails();
+}
+function loadImageThumbnails() {
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        observer.unobserve(entry.target);
+        const d = data.documents.find(
+          (x) => x.id === entry.target.dataset.thumbnailId,
+        );
+        if (!d || documentKind(d) !== "image") continue;
+        (async () => {
+          try {
+            const g = generation,
+              bytes = await documentBytes(d);
+            if (g !== generation || !document.body.contains(entry.target))
+              return;
+            const url = URL.createObjectURL(
+              new Blob([bytes], { type: d.mimeType || "image/jpeg" }),
+            );
+            thumbnailUrls.add(url);
+            const img = document.createElement("img");
+            img.src = url;
+            img.alt = "";
+            entry.target.prepend(img);
+            entry.target.querySelector(".doc-file-icon")?.remove();
+          } catch {}
+        })();
+      }
+    },
+    { rootMargin: "180px" },
+  );
+  document
+    .querySelectorAll("[data-thumbnail-id]")
+    .forEach((node) => observer.observe(node));
+}
+function editDocument(id) {
+  const d = data.documents.find((x) => x.id === id) || { status: "active" };
+  $("#docForm").reset();
+  $("#docForm").elements.group.innerHTML = groupOptions(d.group);
+  $("#docForm").elements.recordId.innerHTML =
+    '<option value="">None</option>' +
+    data.records
+      .map((r) => `<option value="${E(r.id)}">${E(r.name)}</option>`)
+      .join("");
+  for (const [k, v] of Object.entries(d)) {
+    const el = $("#docForm").elements.namedItem(k);
+    if (el && k !== "file") el.value = v;
+  }
+  $("#docForm").elements.file.required = !id;
+  $("#docForm").elements.file.hidden = !!id;
+  $("#docEditor").showModal();
+  attachHelp();
+}
+$("#addDocument").onclick = () => editDocument();
+$("#docCancel").onclick = () => $("#docEditor").close();
+$("#docEditor").addEventListener("close", () => $("#docForm").reset());
+const safeTypes = {
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  txt: "text/plain",
+  csv: "text/csv",
+};
+$("#docForm").onsubmit = (e) => {
+  e.preventDefault();
+  run(async () => {
+    const g = generation;
+    const values = Object.fromEntries(new FormData(e.target));
+    const existing = data.documents.find((d) => d.id === values.id);
+    const next = structuredClone(data);
+    if (existing) {
+      const d = next.documents.find((d) => d.id === values.id);
+      for (const k of [
+        "name",
+        "group",
+        "status",
+        "expiryDate",
+        "tags",
+        "recordId",
+        "memo",
+      ])
+        d[k] = String(values[k] || "");
+    } else {
+      const file = e.target.elements.file.files[0];
+      if (!file || file.size > config.maxDocumentBytes)
+        throw Error("Document must be 3 MiB or smaller");
+      const ext = file.name.split(".").pop().toLowerCase();
+      if (!safeTypes[ext]) throw Error("Unsupported document type");
+      const box = await sealBytes(
+        new Uint8Array(await file.arrayBuffer()),
+        docKey,
+      );
+      if (g !== generation) return;
+      const uploaded = await api("uploadDocument", { box });
+      if (g !== generation) return;
+      next.documents.push({
+        id: crypto.randomUUID(),
+        fileId: uploaded.fileId,
+        name: values.name,
+        group: values.group,
+        status: values.status,
+        expiryDate: values.expiryDate,
+        tags: values.tags,
+        recordId: values.recordId,
+        memo: values.memo,
+        originalName: file.name,
+        mimeType: safeTypes[ext],
+        size: file.size,
+        favorite: false,
+        createdAt: new Date().toISOString(),
+      });
+    }
+    await commit(next);
+    $("#docEditor").close();
+    e.target.reset();
+  });
+};
+function download(value, name, mime) {
+  const blob =
+    value instanceof Blob ? value : new Blob([value], { type: mime });
+  const url = URL.createObjectURL(blob),
+    a = document.createElement("a");
+  a.href = url;
+  a.download = name.replace(/[\x00-\x1f\\/]/g, "_");
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function closeDocumentPreview() {
+  if (previewUrl) {
+    URL.revokeObjectURL(previewUrl);
+    previewUrl = "";
+  }
+  previewDocumentId = "";
+  const dialog = $("#docPreviewDialog");
+  if (dialog?.open) dialog.close();
+  if ($("#docPreviewStage")) $("#docPreviewStage").replaceChildren();
+}
+async function openDocumentPreview(d) {
+  closeDocumentPreview();
+  previewDocumentId = d.id;
+  $("#docPreviewTitle").textContent = d.name;
+  const trashed = d.status === "trashed",
+    retention = trashed ? trashRetention(d) : null;
+  $("#docPreviewMeta").innerHTML =
+    `<span>${E(d.originalName)}</span><span>${(d.size / 1024).toFixed(0)} KB</span><span>${E(d.group || "Ungrouped")}</span><span>${E(d.status)}</span>${trashed ? `<span class="trash-retention ${retention.expired ? "expired" : ""}">${retention.expired ? "Expired — ready to delete" : retention.days + " days to restore"}</span>` : ""}`;
+  $("#docPreviewTrash").textContent = trashed ? "Restore" : "Move to Trash";
+  $("#docPreviewPermanent").hidden = !trashed;
+  $("#docPreviewEdit").hidden = trashed;
+  const stage = $("#docPreviewStage"),
+    kind = documentKind(d);
+  stage.innerHTML =
+    '<div class="doc-preview-placeholder"><p>Preview ဖွင့်နေသည်…</p></div>';
+  $("#docPreviewDialog").showModal();
+  if (["word", "excel", "other"].includes(kind)) {
+    stage.innerHTML = `<div class="doc-preview-placeholder"><span class="doc-file-icon">${documentIcon(kind)}</span><h3>${E(documentKinds[kind][0])} document</h3><p>Browser ထဲတွင် တိတိကျကျ preview မပြနိုင်ပါ။ မူရင်းဖိုင်ကို Download လုပ်ပြီး သက်ဆိုင်ရာ app ဖြင့်ဖွင့်ပါ။</p></div>`;
+    return;
+  }
+  const g = generation,
+    bytes = await documentBytes(d);
+  if (g !== generation || previewDocumentId !== d.id) return;
+  if (kind === "text") {
+    let text = new TextDecoder().decode(bytes),
+      note = "";
+    if (text.length > 200000) {
+      text = text.slice(0, 200000);
+      note = "\n\n— Preview ကို စာလုံး 200,000 အထိသာ ပြထားသည် —";
+    }
+    const pre = document.createElement("pre");
+    pre.textContent = text + note;
+    stage.replaceChildren(pre);
+    return;
+  }
+  previewUrl = URL.createObjectURL(
+    new Blob([bytes], { type: d.mimeType || "application/octet-stream" }),
+  );
+  if (kind === "image") {
+    const img = document.createElement("img");
+    img.src = previewUrl;
+    img.alt = d.name;
+    stage.replaceChildren(img);
+  } else if (kind === "pdf") {
+    const frame = document.createElement("iframe");
+    frame.src = previewUrl;
+    frame.title = d.name + " PDF preview";
+    stage.replaceChildren(frame);
+  }
+}
+$("#docPreviewClose").onclick = closeDocumentPreview;
+$("#docPreviewDialog").addEventListener("close", () => {
+  if (previewUrl) {
+    URL.revokeObjectURL(previewUrl);
+    previewUrl = "";
+  }
+  previewDocumentId = "";
+  $("#docPreviewStage").replaceChildren();
+});
+$("#docPreviewDownload").onclick = () => {
+  const id = previewDocumentId;
+  if (id) documentAction("docDownload", id);
+};
+$("#docPreviewEdit").onclick = () => {
+  const id = previewDocumentId;
+  closeDocumentPreview();
+  if (id) editDocument(id);
+};
+$("#docPreviewTrash").onclick = () => {
+  const id = previewDocumentId,
+    d = data.documents.find((x) => x.id === id);
+  if (d)
+    documentAction(d.status === "trashed" ? "docRestore" : "docDelete", id);
+};
+$("#docPreviewPermanent").onclick = () => {
+  const id = previewDocumentId;
+  if (id) documentAction("docPermanent", id);
+};
+function documentAction(action, id) {
+  run(async () => {
+    const d = data.documents.find((x) => x.id === id);
+    if (!d) return;
+    const g = generation;
+    if (action === "docPreview") {
+      await openDocumentPreview(d);
+      return;
+    }
+    if (["docDownload", "docEncrypted"].includes(action)) {
+      const result = await api("downloadDocument", { fileId: d.fileId });
+      if (g !== generation) return;
+      if (action === "docEncrypted") {
+        download(
+          JSON.stringify({
+            format: "family-vault-document-v1",
+            box: result.box,
+          }),
+          "document-" + d.id + ".fvdoc",
+          "application/json",
+        );
+        return;
+      }
+      const bytes = await unsealBytes(result.box, docKey);
+      if (g !== generation) return;
+      download(bytes, d.originalName, d.mimeType || "application/octet-stream");
+      return;
+    }
+    if (
+      action === "docDelete" &&
+      !confirm(
+        "Document ကို Trash ထဲ 30 ရက် review period ဖြင့်ထားမည်။ ဆက်လုပ်မလား?",
+      )
+    )
+      return;
+    if (
+      action === "docPermanent" &&
+      !confirm(
+        "Document ကို Vault မှဖယ်ပြီး Google Drive Trash သို့ရွှေ့မည်။ ဒီလုပ်ဆောင်ချက်ကို app ထဲမှ ပြန်ယူ၍မရပါ။ ဆက်လုပ်မလား?",
+      )
+    )
+      return;
+    const next = structuredClone(data),
+      record = next.documents.find((x) => x.id === id);
+    if (action === "docFavorite") record.favorite = !d.favorite;
+    if (action === "docDelete") {
+      record.status = "trashed";
+      record.deletedAt = new Date().toISOString();
+    }
+    if (action === "docRestore") {
+      record.status = "active";
+      delete record.deletedAt;
+    }
+    if (action === "docPermanent")
+      next.documents = next.documents.filter((x) => x.id !== id);
+    closeDocumentPreview();
+    await commit(next);
+    if (action === "docPermanent")
+      try {
+        await api("trashDocument", { fileId: d.fileId });
+      } catch (error) {
+        message(
+          "Vault မှဖယ်ပြီးပါပြီ။ Drive Trash သို့မရွှေ့နိုင်ပါ: " +
+            error.message +
+            " File ID: " +
+            d.fileId,
+        );
+      }
+  });
+}
+function purgeExpiredDocuments() {
+  run(async () => {
+    const expired = data.documents.filter(
+      (d) => d.status === "trashed" && trashRetention(d).expired,
+    );
+    if (!expired.length) {
+      message("30 ရက်ကျော်သော Trash documents မရှိပါ။");
+      return;
+    }
+    if (
+      !confirm(
+        `30 ရက်ကျော်သော documents ${expired.length} ခုကို Vault မှဖယ်ပြီး Google Drive Trash သို့ရွှေ့မည်။ ဆက်လုပ်မလား?`,
+      )
+    )
+      return;
+    const ids = new Set(expired.map((d) => d.id)),
+      next = structuredClone(data);
+    next.documents = next.documents.filter((d) => !ids.has(d.id));
+    await commit(next);
+    let failed = 0;
+    for (const d of expired)
+      try {
+        await api("trashDocument", { fileId: d.fileId });
+      } catch {
+        failed++;
+      }
+    message(
+      failed
+        ? `Expired documents ကို Vault မှဖယ်ပြီးပါပြီ။ Drive Trash မပြီးသောဖိုင် ${failed} ခုရှိသည်။`
+        : `Expired documents ${expired.length} ခုကို ဖျက်ပြီးပါပြီ။`,
+    );
+  });
+}
+function renderSettings() {
+  for (const [selector, kind, values] of [
+    ["#groupsList", "group", data.groups],
+    ["#categoriesList", "category", categories(data)],
+  ])
+    $(selector).innerHTML = values
+      .map((name) => {
+        const count = [
+          ...data.records,
+          ...(kind === "group" ? data.documents : []),
+        ].filter((r) => r[kind] === name).length;
+        return `<div class="organizer-row"><div><strong>${E(name)}</strong><small>${count} items</small></div>${kind === "category" && name === "Other" ? '<span class="muted">Fallback</span>' : `<div><button data-organizer="${kind}" data-name="${E(name)}" data-mode="rename">Rename</button><button data-organizer="${kind}" data-name="${E(name)}" data-mode="remove">Remove</button></div>`}</div>`;
+      })
+      .join("");
+  $("#emailOptIn").checked = data.settings.emailReminders === true;
+  $("#driveInfo").innerHTML =
+    `သင့် Gmail ပိုင် <a href="https://drive.google.com/drive/folders/${E(snapshot.folderId)}" target="_blank" rel="noopener noreferrer">Private Drive folder</a> · <a href="https://docs.google.com/spreadsheets/d/${E(snapshot.sheetId)}/edit" target="_blank" rel="noopener noreferrer">Encrypted Google Sheet</a>`;
+}
 
-$('#emailOptIn').onchange=()=>run(async()=>{const next=structuredClone(data);next.settings.emailReminders=$('#emailOptIn').checked;try{await commit(next);}catch(error){$('#emailOptIn').checked=data.settings.emailReminders===true;throw error;}});
-$('#changePass').onclick=()=>{$('#passForm').reset();$('#passEditor').showModal();};$('#passCancel').onclick=()=>$('#passEditor').close();$('#passEditor').addEventListener('close',()=>$('#passForm').reset());
-$('#passForm').onsubmit=e=>{e.preventDefault();run(async()=>{const values=Object.fromEntries(new FormData(e.target));e.target.reset();if(values.pass!==values.confirm)throw Error('Passphrase နှစ်ခု မတူပါ။');const g=generation,newKey=await deriveKey(values.pass,snapshot.salt),next=structuredClone(data),raw=await unseal(next.documentKey,key);next.documentKey=await seal(raw,newKey);const box=await seal(next,newKey);if(g!==generation)return;const result=await api('save',{revision:snapshot.revision,box,reminders:allEvents(next).map(x=>({kind:x.kind,date:x.date})),emailReminders:next.settings.emailReminders===true});if(g!==generation)return;key=newKey;data=next;snapshot={...snapshot,box,revision:result.revision};$('#passEditor').close();render();message('Passphrase ပြောင်းပြီးပါပြီ။ Backup အသစ်ယူပါ။');});};
-let calendarDate=new Date();
-function renderCalendar(all,ids){const y=calendarDate.getFullYear(),m=calendarDate.getMonth(),prefix=`${y}-${String(m+1).padStart(2,'0')}-`;const docIds=new Set(data.documents.filter(matchesDocument).map(d=>d.id));const selectedEvents=all.filter(e=>ids.has(e.id)||docIds.has(e.id));const offset=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate();$('#content').innerHTML=`<div class="heading"><h2>${E(calendarDate.toLocaleDateString(undefined,{month:'long',year:'numeric'}))}</h2><div><button data-calendar="-1">◀</button><button data-calendar="0">Today</button><button data-calendar="1">▶</button></div></div><div class="calendar-grid">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="day-name">${d}</div>`).join('')}${'<div class="day empty"></div>'.repeat(offset)}${Array.from({length:days},(_,i)=>{const date=prefix+String(i+1).padStart(2,'0');return `<div class="day ${date===today()?'today':''}"><strong>${i+1}</strong>${selectedEvents.filter(e=>e.date===date).map(e=>`<button data-action="edit" data-id="${E(e.id)}">${E(e.name)}<small>${E(e.kind)}</small></button>`).join('')}</div>`;}).join('')}</div><h3>All due / renewal / expiry alerts</h3>${selectedEvents.map(e=>`<div class="event ${e.date<today()?'overdue':''}"><strong>${E(e.date)}</strong><span>${E(e.name)} — ${E(e.kind)}</span><button data-action="edit" data-id="${E(e.id)}">Open</button></div>`).join('')}`;}
-$('#content').addEventListener('click',e=>{const b=e.target.closest('[data-calendar]');if(!b)return;const delta=Number(b.dataset.calendar);if(delta===0)calendarDate=new Date();else calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()+delta,1);render();});
-$('#legacyImport').onchange=e=>run(async()=>{const file=e.target.files[0];e.target.value='';if(!file)return;if(file.size>2000000)throw Error('Legacy file too large');const legacy=JSON.parse(await file.text());const {convertLegacy}=await import('./migration.js');const converted=convertLegacy(legacy);if(converted.warnings.length&&!confirm(converted.warnings.join('\n')+'\nImport supported fields only? Original file will remain unchanged.'))return;if(!confirm(`${converted.records.length} records နှင့် ${converted.payments.length} payments ထည့်မည်။ ဆက်လုပ်မလား?`))return;const next=structuredClone(data);next.records.push(...converted.records);next.payments.push(...converted.payments);await commit(next);message('Legacy import ပြီးပါပြီ။ မူလ Sheet/file ကို မဖျက်ပါနှင့်။ Imported dates/linked payments ကိုစစ်ပါ။');});
+$("#emailOptIn").onchange = () =>
+  run(async () => {
+    const next = structuredClone(data);
+    next.settings.emailReminders = $("#emailOptIn").checked;
+    try {
+      await commit(next);
+    } catch (error) {
+      $("#emailOptIn").checked = data.settings.emailReminders === true;
+      throw error;
+    }
+  });
+$("#changePass").onclick = () => {
+  $("#passForm").reset();
+  $("#passEditor").showModal();
+};
+$("#passCancel").onclick = () => $("#passEditor").close();
+$("#passEditor").addEventListener("close", () => $("#passForm").reset());
+$("#passForm").onsubmit = (e) => {
+  e.preventDefault();
+  run(async () => {
+    const values = Object.fromEntries(new FormData(e.target));
+    e.target.reset();
+    if (values.pass !== values.confirm) throw Error("Passphrase နှစ်ခု မတူပါ။");
+    const g = generation,
+      newKey = await deriveKey(values.pass, snapshot.salt),
+      next = structuredClone(data),
+      raw = await unseal(next.documentKey, key);
+    next.documentKey = await seal(raw, newKey);
+    const box = await seal(next, newKey);
+    if (g !== generation) return;
+    const result = await api("save", {
+      revision: snapshot.revision,
+      box,
+      reminders: allEvents(next).map((x) => ({ kind: x.kind, date: x.date })),
+      emailReminders: next.settings.emailReminders === true,
+    });
+    if (g !== generation) return;
+    key = newKey;
+    data = next;
+    snapshot = { ...snapshot, box, revision: result.revision };
+    $("#passEditor").close();
+    render();
+    message("Passphrase ပြောင်းပြီးပါပြီ။ Backup အသစ်ယူပါ။");
+  });
+};
+let calendarDate = new Date();
+function renderCalendar(all, ids) {
+  const y = calendarDate.getFullYear(),
+    m = calendarDate.getMonth(),
+    prefix = `${y}-${String(m + 1).padStart(2, "0")}-`;
+  const docIds = new Set(
+    data.documents.filter(matchesDocument).map((d) => d.id),
+  );
+  const selectedEvents = all.filter((e) => ids.has(e.id) || docIds.has(e.id));
+  const offset = new Date(y, m, 1).getDay(),
+    days = new Date(y, m + 1, 0).getDate();
+  $("#content").innerHTML =
+    `<div class="heading"><h2>${E(calendarDate.toLocaleDateString(undefined, { month: "long", year: "numeric" }))}</h2><div><button data-calendar="-1">◀</button><button data-calendar="0">Today</button><button data-calendar="1">▶</button></div></div><div class="calendar-grid">${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => `<div class="day-name">${d}</div>`).join("")}${'<div class="day empty"></div>'.repeat(offset)}${Array.from(
+      { length: days },
+      (_, i) => {
+        const date = prefix + String(i + 1).padStart(2, "0");
+        return `<div class="day ${date === today() ? "today" : ""}"><strong>${i + 1}</strong>${selectedEvents
+          .filter((e) => e.date === date)
+          .map(
+            (e) =>
+              `<button data-action="edit" data-id="${E(e.id)}">${E(e.name)}<small>${E(e.kind)}</small></button>`,
+          )
+          .join("")}</div>`;
+      },
+    ).join(
+      "",
+    )}</div><h3>All due / renewal / expiry alerts</h3>${selectedEvents.map((e) => `<div class="event ${e.date < today() ? "overdue" : ""}"><strong>${E(e.date)}</strong><span>${E(e.name)} — ${E(e.kind)}</span><button data-action="edit" data-id="${E(e.id)}">Open</button></div>`).join("")}`;
+}
+$("#content").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-calendar]");
+  if (!b) return;
+  const delta = Number(b.dataset.calendar);
+  if (delta === 0) calendarDate = new Date();
+  else
+    calendarDate = new Date(
+      calendarDate.getFullYear(),
+      calendarDate.getMonth() + delta,
+      1,
+    );
+  render();
+});
+$("#legacyImport").onchange = (e) =>
+  run(async () => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 2000000) throw Error("Legacy file too large");
+    const legacy = JSON.parse(await file.text());
+    const { convertLegacy } = await import("./migration.js");
+    const converted = convertLegacy(legacy);
+    if (
+      converted.warnings.length &&
+      !confirm(
+        converted.warnings.join("\n") +
+          "\nImport supported fields only? Original file will remain unchanged.",
+      )
+    )
+      return;
+    if (
+      !confirm(
+        `${converted.records.length} records နှင့် ${converted.payments.length} payments ထည့်မည်။ ဆက်လုပ်မလား?`,
+      )
+    )
+      return;
+    const next = structuredClone(data);
+    next.records.push(...converted.records);
+    next.payments.push(...converted.payments);
+    await commit(next);
+    message(
+      "Legacy import ပြီးပါပြီ။ မူလ Sheet/file ကို မဖျက်ပါနှင့်။ Imported dates/linked payments ကိုစစ်ပါ။",
+    );
+  });
 
-const generate=document.createElement('button');generate.type='button';generate.textContent='Generate strong password';$('#recordForm').elements.password.parentElement.append(generate);generate.onclick=()=>{$('#recordForm').elements.password.value=to64(crypto.getRandomValues(new Uint8Array(24)));message('Password အသစ်ကို Save encrypted လုပ်ပါ။');};
+const generate = document.createElement("button");
+generate.type = "button";
+generate.textContent = "Generate strong password";
+$("#recordForm").elements.password.parentElement.append(generate);
+generate.onclick = () => {
+  $("#recordForm").elements.password.value = to64(
+    crypto.getRandomValues(new Uint8Array(24)),
+  );
+  message("Password အသစ်ကို Save encrypted လုပ်ပါ။");
+};
 
-function addSampleRecords(){if(!key){message('နမူနာထည့်ရန် Vault ကိုအရင်ဖွင့်ပါ။');return;}$('#helpDialog').close();run(async()=>{await commit(addExamples(data,today()));view='records';document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('selected',b.dataset.view===view));$('#search').value='';for(const selector of ['#recordType','#groupFilter','#favoriteFilter','#category'])$(selector).value='all';$('#status').value='active';render();message('နမူနာ ၃ ခုကိုကြည့်နိုင်ပါပြီ။ Edit / Save ဖြင့် ကိုယ့်အချက်အလက်ပြောင်းနိုင်သည်။');});}
-$('#addSamples').onclick=addSampleRecords;$('#guideSamples').onclick=addSampleRecords;
-$('#helpContent').innerHTML=guideMarkup;$('#help').onclick=()=>{hideTooltip();$('#guideSamples').hidden=!key;$('#helpDialog').showModal();};$('#helpClose').onclick=()=>$('#helpDialog').close();
-$('#filtersToggle').onclick=()=>{const open=$('#filtersToggle').getAttribute('aria-expanded')!=='true';$('#filtersToggle').setAttribute('aria-expanded',String(open));$('#filterPanel').classList.toggle('expanded',open);};
-$('#resetFilters').onclick=()=>{$('#search').value='';for(const selector of ['#recordType','#groupFilter','#favoriteFilter','#category'])$(selector).value='all';$('#status').value='active';render();};
-function helpButton(topic){const b=document.createElement('button');b.type='button';b.className='help-dot';b.dataset.help=topic;b.setAttribute('aria-label',topic+' အသုံးပြုနည်း');b.textContent='?';return b;}
-function attachHelp(){for(const form of [$('#recordForm'),$('#docForm')])for(const input of form.querySelectorAll('input,select,textarea')){if(!tips[input.name]||input.type==='hidden')continue;const label=input.closest('label');if(label&&!label.querySelector('.help-dot'))label.prepend(helpButton(input.name));}const history=$('#recordForm').elements.providerHistory;if(!history.previousElementSibling?.classList.contains('help-dot'))history.before(helpButton('providerHistory'));for(const id of ['lock','logout','backup','refresh','search','notifications','addDocument','addSamples','groupFilter','favoriteFilter']){const el=$('#'+id);if(el)el.title=tips[id]||'';}generate.dataset.help='generate';for(const b of document.querySelectorAll('[data-action]'))if(tips[b.dataset.action]){b.title=tips[b.dataset.action];b.setAttribute('aria-label',b.textContent+' — '+tips[b.dataset.action]);}for(const b of document.querySelectorAll('.help-dot'))b.title=tips[b.dataset.help]||'';}
-function showTooltip(source){const text=tips[source.dataset.help];if(!text)return;const box=$('#fieldTooltip');tooltipSource?.removeAttribute('aria-describedby');tooltipSource=source;source.setAttribute('aria-describedby','fieldTooltip');box.textContent=text;box.hidden=false;if(source.closest('dialog'))source.closest('dialog').append(box);else document.body.append(box);const rect=source.getBoundingClientRect(),width=Math.min(320,window.innerWidth-24);box.style.width=width+'px';box.style.left=Math.max(12,Math.min(rect.left,window.innerWidth-width-12))+'px';box.style.top=Math.max(12,Math.min(rect.bottom+10,window.innerHeight-box.offsetHeight-12))+'px';}
-function hideTooltip(){const box=$('#fieldTooltip');if(box)box.hidden=true;tooltipSource?.removeAttribute('aria-describedby');tooltipSource=null;}
-document.addEventListener('pointerover',e=>{if(e.pointerType==='touch')return;const source=e.target.closest('[data-help]');if(source)showTooltip(source);});
-document.addEventListener('pointerout',e=>{if(e.pointerType==='touch')return;if(e.target.closest('[data-help]')&&!e.relatedTarget?.closest('[data-help]'))hideTooltip();});
-document.addEventListener('focusin',e=>{const source=e.target.closest('[data-help]');if(source)showTooltip(source);});document.addEventListener('focusout',e=>{if(e.target.closest('[data-help]'))hideTooltip();});
-document.addEventListener('click',e=>{const source=e.target.closest('[data-help]');if(source){e.preventDefault();showTooltip(source);}else hideTooltip();});document.addEventListener('keydown',e=>{if(e.key==='Escape')hideTooltip();});window.addEventListener('resize',hideTooltip);document.addEventListener('scroll',hideTooltip,true);attachHelp();
+function addSampleRecords() {
+  if (!key) {
+    message("နမူနာထည့်ရန် Vault ကိုအရင်ဖွင့်ပါ။");
+    return;
+  }
+  $("#helpDialog").close();
+  run(async () => {
+    await commit(addExamples(data, today()));
+    view = "records";
+    quickFilter = "all";
+    document
+      .querySelectorAll("nav button")
+      .forEach((b) => b.classList.toggle("selected", b.dataset.view === view));
+    $("#search").value = "";
+    for (const selector of [
+      "#recordType",
+      "#groupFilter",
+      "#favoriteFilter",
+      "#category",
+    ])
+      $(selector).value = "all";
+    $("#status").value = "active";
+    render();
+    message(
+      "နမူနာ ၃ ခုကိုကြည့်နိုင်ပါပြီ။ Edit / Save ဖြင့် ကိုယ့်အချက်အလက်ပြောင်းနိုင်သည်။",
+    );
+  });
+}
+$("#addSamples").onclick = addSampleRecords;
+$("#guideSamples").onclick = addSampleRecords;
+$("#helpContent").innerHTML = guideMarkup;
+$("#help").onclick = () => {
+  hideTooltip();
+  $("#guideSamples").hidden = !key;
+  $("#helpDialog").showModal();
+};
+$("#helpClose").onclick = () => $("#helpDialog").close();
+$("#filtersToggle").onclick = () => {
+  const open = $("#filtersToggle").getAttribute("aria-expanded") !== "true";
+  $("#filtersToggle").setAttribute("aria-expanded", String(open));
+  $("#filterPanel").classList.toggle("expanded", open);
+};
+$("#quickFilters").onclick = (e) => {
+  const button = e.target.closest("[data-quick-filter]");
+  if (!button) return;
+  quickFilter = button.dataset.quickFilter;
+  render();
+};
+$("#resetFilters").onclick = () => {
+  quickFilter = "all";
+  $("#search").value = "";
+  for (const selector of [
+    "#recordType",
+    "#groupFilter",
+    "#favoriteFilter",
+    "#category",
+  ])
+    $(selector).value = "all";
+  $("#status").value = "active";
+  render();
+};
+function helpButton(topic) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "help-dot";
+  b.dataset.help = topic;
+  b.setAttribute("aria-label", topic + " အသုံးပြုနည်း");
+  b.textContent = "?";
+  return b;
+}
+function attachHelp() {
+  for (const form of [$("#recordForm"), $("#docForm")])
+    for (const input of form.querySelectorAll("input,select,textarea")) {
+      if (!tips[input.name] || input.type === "hidden") continue;
+      const label = input.closest("label");
+      if (label && !label.querySelector(".help-dot"))
+        label.prepend(helpButton(input.name));
+    }
+  const history = $("#recordForm").elements.providerHistory;
+  if (!history.previousElementSibling?.classList.contains("help-dot"))
+    history.before(helpButton("providerHistory"));
+  for (const id of [
+    "lock",
+    "logout",
+    "backup",
+    "refresh",
+    "search",
+    "notifications",
+    "addDocument",
+    "addSamples",
+    "groupFilter",
+    "favoriteFilter",
+  ]) {
+    const el = $("#" + id);
+    if (el) el.title = tips[id] || "";
+  }
+  generate.dataset.help = "generate";
+  for (const b of document.querySelectorAll("[data-action]"))
+    if (tips[b.dataset.action]) {
+      b.title = tips[b.dataset.action];
+      b.setAttribute(
+        "aria-label",
+        b.textContent + " — " + tips[b.dataset.action],
+      );
+    }
+  for (const b of document.querySelectorAll(".help-dot"))
+    b.title = tips[b.dataset.help] || "";
+}
+function showTooltip(source) {
+  const text = tips[source.dataset.help];
+  if (!text) return;
+  const box = $("#fieldTooltip");
+  tooltipSource?.removeAttribute("aria-describedby");
+  tooltipSource = source;
+  source.setAttribute("aria-describedby", "fieldTooltip");
+  box.textContent = text;
+  box.hidden = false;
+  if (source.closest("dialog")) source.closest("dialog").append(box);
+  else document.body.append(box);
+  const rect = source.getBoundingClientRect(),
+    width = Math.min(320, window.innerWidth - 24);
+  box.style.width = width + "px";
+  box.style.left =
+    Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)) + "px";
+  box.style.top =
+    Math.max(
+      12,
+      Math.min(rect.bottom + 10, window.innerHeight - box.offsetHeight - 12),
+    ) + "px";
+}
+function hideTooltip() {
+  const box = $("#fieldTooltip");
+  if (box) box.hidden = true;
+  tooltipSource?.removeAttribute("aria-describedby");
+  tooltipSource = null;
+}
+document.addEventListener("pointerover", (e) => {
+  if (e.pointerType === "touch") return;
+  const source = e.target.closest("[data-help]");
+  if (source) showTooltip(source);
+});
+document.addEventListener("pointerout", (e) => {
+  if (e.pointerType === "touch") return;
+  if (
+    e.target.closest("[data-help]") &&
+    !e.relatedTarget?.closest("[data-help]")
+  )
+    hideTooltip();
+});
+document.addEventListener("focusin", (e) => {
+  const source = e.target.closest("[data-help]");
+  if (source) showTooltip(source);
+});
+document.addEventListener("focusout", (e) => {
+  if (e.target.closest("[data-help]")) hideTooltip();
+});
+document.addEventListener("click", (e) => {
+  const source = e.target.closest("[data-help]");
+  if (source) {
+    e.preventDefault();
+    showTooltip(source);
+  } else hideTooltip();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") hideTooltip();
+});
+window.addEventListener("resize", hideTooltip);
+document.addEventListener("scroll", hideTooltip, true);
+attachHelp();
 
-function refreshCategories(){const filter=$('#category'),value=filter.value;filter.innerHTML='<option value="all">All categories</option>'+categories(data).map(c=>`<option value="${E(c)}">${E(c)}</option>`).join('');filter.value=categories(data).includes(value)?value:'all';if(!$('#editor').open){const field=$('#recordForm').elements.category;field.innerHTML=categories(data).map(c=>`<option value="${E(c)}">${E(c)}</option>`).join('');}}
-let organizerContext=null,paymentRecordId=null;
-function openOrganizer(kind,mode='add',oldName='',select=null){organizerContext={kind,mode,oldName,select};$('#organizerName').value=mode==='rename'?oldName:'';$('#organizerError').textContent='';$('#organizerTitle').textContent=(kind==='group'?'Group':'Category')+(mode==='rename'?' အမည်ပြောင်းရန်':' အသစ်');$('#organizerHint').textContent=kind==='group'?'ကိုယ်တိုင်စုစည်းရာ။ ဥပမာ အိမ်၊ အလုပ်၊ မိသားစု။':'Record အမျိုးအစား။ ဥပမာ Banking၊ Education၊ Travel။';$('#organizerDialog').showModal();$('#organizerName').focus();}
-$('#organizerCancel').onclick=()=>$('#organizerDialog').close();$('#newGroupButton').onclick=()=>openOrganizer('group');$('#newCategoryButton').onclick=()=>openOrganizer('category');
-$('#organizerForm').onsubmit=e=>{e.preventDefault();run(async()=>{const ctx=organizerContext,name=$('#organizerName').value.trim();try{const next=organize(data,ctx.kind,ctx.mode,name,ctx.oldName);await commit(next);if(!key)return;for(const form of [$('#recordForm'),$('#docForm')]){const select=form.elements.namedItem(ctx.kind);if(!select)continue;const selected=select===ctx.select?name:select.value;select.innerHTML=ctx.kind==='group'?groupOptions(selected):categories(data).map(c=>`<option value="${E(c)}">${E(c)}</option>`).join('');select.value=ctx.mode==='rename'&&selected===ctx.oldName?name:selected;}$('#organizerDialog').close();}catch(error){$('#organizerError').textContent=error.message;throw error;}});};
-for(const selector of ['#groupsList','#categoriesList'])$(selector).onclick=e=>{const b=e.target.closest('[data-organizer]');if(!b)return;const {organizer:kind,mode,name}=b.dataset;if(mode==='rename')return openOrganizer(kind,mode,name);run(async()=>{if(!confirm(kind==='group'?'Group ကိုဖယ်မည်။ Records/documents မဖျက်ဘဲ Ungrouped ထားမည်။ ဆက်လုပ်မလား?':'Category ကိုဖယ်မည်။ Records မဖျက်ဘဲ Other သို့ရွှေ့မည်။ ဆက်လုပ်မလား?'))return;await commit(organize(data,kind,'remove','',name));});};
-for(const form of [$('#recordForm'),$('#docForm')])for(const kind of ['group','category']){const select=form.elements.namedItem(kind);if(!select)continue;const b=document.createElement('button');b.type='button';b.className='inline-add';b.textContent=kind==='group'?'＋ Group အသစ်':'＋ Category အသစ်';b.onclick=()=>openOrganizer(kind,'add','',select);select.after(b);}
-function openPayment(record){if(record.isExample){message('နမူနာကို Edit/Save ဖြင့် တကယ့် bill အဖြစ်ပြောင်းပြီးမှ payment မှတ်ပါ။');return;}paymentRecordId=record.id;$('#paymentForm').reset();$('#paymentName').textContent=record.name;$('#paymentForm').elements.date.value=today();$('#paymentForm').elements.amount.value=record.amount;$('#paymentDialog').showModal();}
-$('#paymentCancel').onclick=()=>$('#paymentDialog').close();$('#paymentDialog').addEventListener('close',()=>{$('#paymentForm').reset();$('#paymentName').textContent='';paymentRecordId=null;});
-$('#paymentForm').onsubmit=e=>{e.preventDefault();run(async()=>{const values=Object.fromEntries(new FormData(e.target)),next=structuredClone(data),record=next.records.find(r=>r.id===paymentRecordId);if(!record)throw Error('Bill မရှိတော့ပါ။ Refresh လုပ်ပါ။');const amount=Number(values.amount);if(!Number.isFinite(amount)||amount<0)throw Error('Invalid amount');next.payments.push({id:crypto.randomUUID(),recordId:record.id,name:record.name,date:values.date,amount,memo:values.memo});record.paymentStatus='paid';if(['monthly','quarterly','four-month','semiannual','yearly'].includes(record.frequency)&&record.dueDate){record.dueDate=advanceDate(record.dueDate,record.frequency);record.paymentStatus='unpaid';}record.updatedAt=new Date().toISOString();await commit(next);$('#paymentDialog').close();});};
+function refreshCategories() {
+  const filter = $("#category"),
+    value = filter.value;
+  filter.innerHTML =
+    '<option value="all">All categories</option>' +
+    categories(data)
+      .map((c) => `<option value="${E(c)}">${E(c)}</option>`)
+      .join("");
+  filter.value = categories(data).includes(value) ? value : "all";
+  if (!$("#editor").open) {
+    const field = $("#recordForm").elements.category;
+    field.innerHTML = categories(data)
+      .map((c) => `<option value="${E(c)}">${E(c)}</option>`)
+      .join("");
+  }
+}
+let organizerContext = null,
+  paymentRecordId = null;
+function openOrganizer(kind, mode = "add", oldName = "", select = null) {
+  organizerContext = { kind, mode, oldName, select };
+  $("#organizerName").value = mode === "rename" ? oldName : "";
+  $("#organizerError").textContent = "";
+  $("#organizerTitle").textContent =
+    (kind === "group" ? "Group" : "Category") +
+    (mode === "rename" ? " အမည်ပြောင်းရန်" : " အသစ်");
+  $("#organizerHint").textContent =
+    kind === "group"
+      ? "ကိုယ်တိုင်စုစည်းရာ။ ဥပမာ အိမ်၊ အလုပ်၊ မိသားစု။"
+      : "Record အမျိုးအစား။ ဥပမာ Banking၊ Education၊ Travel။";
+  $("#organizerDialog").showModal();
+  $("#organizerName").focus();
+}
+$("#organizerCancel").onclick = () => $("#organizerDialog").close();
+$("#newGroupButton").onclick = () => openOrganizer("group");
+$("#newCategoryButton").onclick = () => openOrganizer("category");
+$("#organizerForm").onsubmit = (e) => {
+  e.preventDefault();
+  run(async () => {
+    const ctx = organizerContext,
+      name = $("#organizerName").value.trim();
+    try {
+      const next = organize(data, ctx.kind, ctx.mode, name, ctx.oldName);
+      await commit(next);
+      if (!key) return;
+      for (const form of [$("#recordForm"), $("#docForm")]) {
+        const select = form.elements.namedItem(ctx.kind);
+        if (!select) continue;
+        const selected = select === ctx.select ? name : select.value;
+        select.innerHTML =
+          ctx.kind === "group"
+            ? groupOptions(selected)
+            : categories(data)
+                .map((c) => `<option value="${E(c)}">${E(c)}</option>`)
+                .join("");
+        select.value =
+          ctx.mode === "rename" && selected === ctx.oldName ? name : selected;
+      }
+      $("#organizerDialog").close();
+    } catch (error) {
+      $("#organizerError").textContent = error.message;
+      throw error;
+    }
+  });
+};
+for (const selector of ["#groupsList", "#categoriesList"])
+  $(selector).onclick = (e) => {
+    const b = e.target.closest("[data-organizer]");
+    if (!b) return;
+    const { organizer: kind, mode, name } = b.dataset;
+    if (mode === "rename") return openOrganizer(kind, mode, name);
+    run(async () => {
+      if (
+        !confirm(
+          kind === "group"
+            ? "Group ကိုဖယ်မည်။ Records/documents မဖျက်ဘဲ Ungrouped ထားမည်။ ဆက်လုပ်မလား?"
+            : "Category ကိုဖယ်မည်။ Records မဖျက်ဘဲ Other သို့ရွှေ့မည်။ ဆက်လုပ်မလား?",
+        )
+      )
+        return;
+      await commit(organize(data, kind, "remove", "", name));
+    });
+  };
+for (const form of [$("#recordForm"), $("#docForm")])
+  for (const kind of ["group", "category"]) {
+    const select = form.elements.namedItem(kind);
+    if (!select) continue;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "inline-add";
+    b.textContent = kind === "group" ? "＋ Group အသစ်" : "＋ Category အသစ်";
+    b.onclick = () => openOrganizer(kind, "add", "", select);
+    select.after(b);
+  }
+function openPayment(record) {
+  if (record.isExample) {
+    message(
+      "နမူနာကို Edit/Save ဖြင့် တကယ့် bill အဖြစ်ပြောင်းပြီးမှ payment မှတ်ပါ။",
+    );
+    return;
+  }
+  paymentRecordId = record.id;
+  $("#paymentForm").reset();
+  $("#paymentName").textContent = record.name;
+  $("#paymentForm").elements.date.value = today();
+  $("#paymentForm").elements.amount.value = record.amount;
+  $("#paymentDialog").showModal();
+}
+$("#paymentCancel").onclick = () => $("#paymentDialog").close();
+$("#paymentDialog").addEventListener("close", () => {
+  $("#paymentForm").reset();
+  $("#paymentName").textContent = "";
+  paymentRecordId = null;
+});
+$("#paymentForm").onsubmit = (e) => {
+  e.preventDefault();
+  run(async () => {
+    const values = Object.fromEntries(new FormData(e.target)),
+      next = structuredClone(data),
+      record = next.records.find((r) => r.id === paymentRecordId);
+    if (!record) throw Error("Bill မရှိတော့ပါ။ Refresh လုပ်ပါ။");
+    const amount = Number(values.amount);
+    if (!Number.isFinite(amount) || amount < 0) throw Error("Invalid amount");
+    next.payments.push({
+      id: crypto.randomUUID(),
+      recordId: record.id,
+      name: record.name,
+      date: values.date,
+      amount,
+      memo: values.memo,
+    });
+    record.paymentStatus = "paid";
+    if (
+      ["monthly", "quarterly", "four-month", "semiannual", "yearly"].includes(
+        record.frequency,
+      ) &&
+      record.dueDate
+    ) {
+      record.dueDate = advanceDate(record.dueDate, record.frequency);
+      record.paymentStatus = "unpaid";
+    }
+    record.updatedAt = new Date().toISOString();
+    await commit(next);
+    $("#paymentDialog").close();
+  });
+};
