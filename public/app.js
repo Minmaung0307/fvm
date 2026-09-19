@@ -158,7 +158,7 @@ async function commit(next) {
   message(
     result.reminderConfigured === false
       ? "Data saved; email reminder configuration failed. Retry save or contact admin."
-      : "Encrypted save ပြီးပါပြီ။",
+      : "Encrypted save",
   );
 }
 const onlinePattern =
@@ -175,12 +175,12 @@ function isOnlineAccount(r) {
 }
 function recordSearchText(r) {
   const frequencyTerms = {
-    monthly: "monthly monthly pay every month လစဉ်",
+    monthly: "monthly monthly pay every month",
     quarterly: "quarterly 3mo 3 months every 3 months",
     "four-month": "4mo 4 months every 4 months",
     semiannual: "semiannual 6mo 6 months every 6 months",
-    yearly: "yearly annual every year နှစ်စဉ်",
-    "one-time": "one time once တစ်ကြိမ်",
+    yearly: "yearly annual every year",
+    "one-time": "one time once",
   };
   return [
     r.name,
@@ -360,14 +360,14 @@ function render() {
     ids = new Set(records.map((r) => r.id));
   $("#collectionTitle").textContent = {
     records: "Accounts & bills",
-    documents: "အရေးကြီးစာရွက်စာတမ်းများ",
+    documents: "Important Docs",
     calendar: "Calendar & alerts",
     history: "Payment history",
     settings: "Groups & settings",
   }[view];
   $("#resultCount").textContent =
     view === "records"
-      ? `${records.length} records · နမူနာများကို bills estimate / alerts ထဲမတွက်ပါ`
+      ? `${records.length} records · sample bills estimate / alerts NOT calculated`
       : view === "documents"
         ? `${data.documents.filter(matchesDocument).length} documents`
         : "";
@@ -397,7 +397,7 @@ function render() {
       .join("");
   if (!$("#content").textContent.trim())
     $("#content").innerHTML =
-      '<div class="empty-state"><span aria-hidden="true">◈</span><h3>တစ်နေရာတည်းမှာ စတင်သိမ်းပါ။</h3><p>မှတ်တမ်းမရှိသေးပါ သို့မဟုတ် filter နှင့်မကိုက်ပါ။ Account / Bill အသစ်ထည့်နိုင်သည်။</p><button data-action="emptyAdd">＋ Account အသစ်</button></div>';
+      '<div class="empty-state"><span aria-hidden="true">◈</span><h3>Save in one place.</h3><p>No records or No filter criteria match.</p><p>You can add new Accounts or Bills.</p><button data-action="emptyAdd">＋ Account</button></div>';
   attachHelp();
   checkAlerts();
 }
@@ -405,7 +405,7 @@ const fields = [
   ["recordType", "Record type", "select", ["account", "bill"]],
   ["group", "Group", "select", initialData().groups],
   ["tags", "Tags (comma separated)", "text"],
-  ["name", "အမည်", "text"],
+  ["name", "Name", "text"],
   [
     "category",
     "Category",
@@ -662,7 +662,7 @@ function deleteRecord(id) {
   run(async () => {
     if (
       !confirm(
-        "ဤ record နှင့် ဆက်စပ် payment history ကို အပြီးဖျက်မည်။ ဆက်လုပ်မလား?",
+        "Permanently delete this record and related payment history? Proceed?",
       )
     )
       return;
@@ -789,13 +789,13 @@ $("#unlockForm").onsubmit = (e) => {
       try {
         next = normalize(await unseal(fresh.box, newKey));
       } catch {
-        throw Error("Passphrase မမှန်ပါ သို့မဟုတ် backup ပျက်နေပါသည်။");
+        throw Error("Not correct passphrase or damagedbackup");
       }
     } else {
       if (pass !== confirmation) throw Error("Passphrase နှစ်ခု မတူပါ။");
       if (
         !confirm(
-          "Vault အသစ်စတင်မည်။ ကိုယ်ပိုင် passphrase ကို လုံခြုံစွာမှတ်ထားပါ။ မေ့လျှင် data ပြန်မရနိုင်ပါ။",
+          "New Vault Setup: Keep your passphrase safe. Data cannot be recovered if forgotten.",
         )
       )
         return;
@@ -888,7 +888,7 @@ $("#restore").onchange = (e) =>
     if (g !== generation) return;
     if (
       confirm(
-        "လက်ရှိ vault data အားလုံးကို backup ဖြင့် အစားထိုးမည်။ ဆက်လုပ်မလား?",
+        "Replace current vault data with backup? Continue?",
       )
     ) {
       if (restored.documentKey) {
@@ -914,7 +914,7 @@ function checkAlerts() {
     const id = `${e.id}:${e.kind}:${e.date}:${now}`;
     if (!notified.has(id)) {
       new Notification("Family Vault reminder", {
-        body: "Vault ထဲတွင် စစ်ဆေးရန် due / renewal / expiry ရှိပါသည်။",
+        body: "You have pending dues, renewals, or expirations to review in your vault.",
         icon: "/icon.svg",
       });
       notified.add(id);
@@ -944,7 +944,7 @@ document.addEventListener("visibilitychange", () => {
 try {
   if (config.firebase.apiKey.startsWith("YOUR_"))
     throw Error(
-      "Setup လိုအပ်ပါသည်။ README.my.md အတိုင်း Firebase config နှင့် backend ကို ပြင်ဆင်ပါ။",
+      "Setup Required: Follow README.my.md to configure Firebase and the backend.",
     );
   auth = getAuth(initializeApp(config.firebase));
   await setPersistence(auth, inMemoryPersistence);
@@ -962,10 +962,10 @@ try {
         $("#confirmLabel").hidden = !!loaded.box;
         $("#setupHint").textContent = loaded.box
           ? "သင့် personal vault passphrase ဖြင့်ဖွင့်ပါ။"
-          : "ပထမဆုံးအသုံးပြုခြင်း — shared မဟုတ်သော ကိုယ်ပိုင် passphrase အသစ်သတ်မှတ်ပါ။";
+          : "Initial Setup — Set a new private passphrase.";
         $("#login").hidden = true;
         $("#unlockForm").hidden = false;
-        message("သင့် Gmail နှင့် ကိုယ်ပိုင် Drive ချိတ်ဆက်ပြီးပါပြီ။");
+        message("Connected to your Gmail and Google Drive.");
       } catch (error) {
         googleToken = "";
         await signOut(auth);
@@ -1124,12 +1124,12 @@ function renderDocuments() {
   ];
   const expired = trash.filter((d) => trashRetention(d).expired).length;
   $("#content").innerHTML =
-    `<p class="muted">File content နှင့် original filename ကို encrypt လုပ်ထားသည်။ Preview ဖွင့်ချိန်တွင် browser memory ထဲမှာသာ decrypt လုပ်သည်။ Trash ထဲတွင် 30 ရက် review period ရှိပြီး အဲဒီအတွင်း Restore လုပ်နိုင်သည်။</p><div class="document-type-bar" role="group" aria-label="Document type">${kinds.map((kind) => `<button type="button" data-action="docFilter" data-kind="${kind}" aria-pressed="${documentTypeFilter === kind}">${documentKinds[kind][1]} ${documentKinds[kind][0]} · ${kind === "trash" ? trash.length : kind === "all" ? regular.length : regular.filter((d) => documentKind(d) === kind).length}</button>`).join("")}${documentTypeFilter === "trash" && expired ? `<button type="button" class="danger" data-action="docPurgeExpired">Delete expired · ${expired}</button>` : ""}</div><div class="cards">${visible
+    `<p class="muted">File contents and original filenames are encrypted. Decryption happens strictly in browser memory only when opened for preview. Items in the Trash have a 30-day retention period during which they can be restored.</p><div class="document-type-bar" role="group" aria-label="Document type">${kinds.map((kind) => `<button type="button" data-action="docFilter" data-kind="${kind}" aria-pressed="${documentTypeFilter === kind}">${documentKinds[kind][1]} ${documentKinds[kind][0]} · ${kind === "trash" ? trash.length : kind === "all" ? regular.length : regular.filter((d) => documentKind(d) === kind).length}</button>`).join("")}${documentTypeFilter === "trash" && expired ? `<button type="button" class="danger" data-action="docPurgeExpired">Delete expired · ${expired}</button>` : ""}</div><div class="cards">${visible
       .map((d) => {
         const kind = documentKind(d),
           trashed = d.status === "trashed",
           retention = trashed ? trashRetention(d) : null;
-        return `<article class="card doc-card doc-kind-${kind} ${trashed ? "doc-trashed" : ""}"><span class="tag">${E(d.group || "Ungrouped")} · ${E(d.status)}</span>${trashed ? `<span class="trash-retention ${retention.expired ? "expired" : ""}">${retention.expired ? "Expired — ready to delete" : retention.days + " days to restore"}</span>` : ""}<button type="button" class="doc-preview-trigger" data-action="docPreview" data-id="${E(d.id)}" aria-label="${E(d.name)} preview ဖွင့်ရန်"><span class="doc-thumbnail" data-thumbnail-id="${E(d.id)}"><span class="doc-file-icon">${documentIcon(kind)}</span><span class="doc-file-type">${E(documentKinds[kind][0])}</span></span></button><h3>${d.favorite ? "★ " : ""}${E(d.name)}</h3><p>${E(d.originalName)} · ${(d.size / 1024).toFixed(0)} KB</p><p class="muted">${E(d.tags)}<br>Expiry: ${E(d.expiryDate || "—")}<br>${E(d.memo)}</p>${trashed ? `<p class="doc-trash-note">Trash date: ${E(String(d.deletedAt || "").slice(0, 10) || "—")}</p>` : ""}${d.recordId ? `<p>Linked: ${E(data.records.find((r) => r.id === d.recordId)?.name || "Deleted record")}</p>` : ""}${trashed ? `<button data-action="docRestore" data-id="${E(d.id)}">Restore</button><button data-action="docPermanent" data-id="${E(d.id)}" class="danger">Delete permanently</button>` : `<button data-action="docDownload" data-id="${E(d.id)}">Download</button><button data-action="docEncrypted" data-id="${E(d.id)}">Encrypted copy</button><button data-action="edit" data-id="${E(d.id)}">Edit</button><button data-action="docFavorite" data-id="${E(d.id)}">${d.favorite ? "★" : "☆"}</button><button data-action="docDelete" data-id="${E(d.id)}" class="danger">Move to Trash</button>`}</article>`;
+        return `<article class="card doc-card doc-kind-${kind} ${trashed ? "doc-trashed" : ""}"><span class="tag">${E(d.group || "Ungrouped")} · ${E(d.status)}</span>${trashed ? `<span class="trash-retention ${retention.expired ? "expired" : ""}">${retention.expired ? "Expired — ready to delete" : retention.days + " days to restore"}</span>` : ""}<button type="button" class="doc-preview-trigger" data-action="docPreview" data-id="${E(d.id)}" aria-label="${E(d.name)} preview"><span class="doc-thumbnail" data-thumbnail-id="${E(d.id)}"><span class="doc-file-icon">${documentIcon(kind)}</span><span class="doc-file-type">${E(documentKinds[kind][0])}</span></span></button><h3>${d.favorite ? "★ " : ""}${E(d.name)}</h3><p>${E(d.originalName)} · ${(d.size / 1024).toFixed(0)} KB</p><p class="muted">${E(d.tags)}<br>Expiry: ${E(d.expiryDate || "—")}<br>${E(d.memo)}</p>${trashed ? `<p class="doc-trash-note">Trash date: ${E(String(d.deletedAt || "").slice(0, 10) || "—")}</p>` : ""}${d.recordId ? `<p>Linked: ${E(data.records.find((r) => r.id === d.recordId)?.name || "Deleted record")}</p>` : ""}${trashed ? `<button data-action="docRestore" data-id="${E(d.id)}">Restore</button><button data-action="docPermanent" data-id="${E(d.id)}" class="danger">Delete permanently</button>` : `<button data-action="docDownload" data-id="${E(d.id)}">Download</button><button data-action="docEncrypted" data-id="${E(d.id)}">Encrypted copy</button><button data-action="edit" data-id="${E(d.id)}">Edit</button><button data-action="docFavorite" data-id="${E(d.id)}">${d.favorite ? "★" : "☆"}</button><button data-action="docDelete" data-id="${E(d.id)}" class="danger">Move to Trash</button>`}</article>`;
       })
       .join("")}</div>`;
   loadImageThumbnails();
@@ -1289,10 +1289,10 @@ async function openDocumentPreview(d) {
   const stage = $("#docPreviewStage"),
     kind = documentKind(d);
   stage.innerHTML =
-    '<div class="doc-preview-placeholder"><p>Preview ဖွင့်နေသည်…</p></div>';
+    '<div class="doc-preview-placeholder"><p>Preview opening…</p></div>';
   $("#docPreviewDialog").showModal();
   if (["word", "excel", "other"].includes(kind)) {
-    stage.innerHTML = `<div class="doc-preview-placeholder"><span class="doc-file-icon">${documentIcon(kind)}</span><h3>${E(documentKinds[kind][0])} document</h3><p>Browser ထဲတွင် တိတိကျကျ preview မပြနိုင်ပါ။ မူရင်းဖိုင်ကို Download လုပ်ပြီး သက်ဆိုင်ရာ app ဖြင့်ဖွင့်ပါ။</p></div>`;
+    stage.innerHTML = `<div class="doc-preview-placeholder"><span class="doc-file-icon">${documentIcon(kind)}</span><h3>${E(documentKinds[kind][0])} document</h3><p>Unable to preview accurately in the browser. Please download the original file and open it with an appropriate app.</p></div>`;
     return;
   }
   const g = generation,
@@ -1303,7 +1303,7 @@ async function openDocumentPreview(d) {
       note = "";
     if (text.length > 200000) {
       text = text.slice(0, 200000);
-      note = "\n\n— Preview ကို စာလုံး 200,000 အထိသာ ပြထားသည် —";
+      note = "\n\n— Preview limited to the first 200,000 characters.";
     }
     const pre = document.createElement("pre");
     pre.textContent = text + note;
@@ -1384,14 +1384,14 @@ function documentAction(action, id) {
     if (
       action === "docDelete" &&
       !confirm(
-        "Document ကို Trash ထဲ 30 ရက် review period ဖြင့်ထားမည်။ ဆက်လုပ်မလား?",
+        "Move this document to Trash for a 30-day review period. Do you want to continue?",
       )
     )
       return;
     if (
       action === "docPermanent" &&
       !confirm(
-        "Document ကို Vault မှဖယ်ပြီး Google Drive Trash သို့ရွှေ့မည်။ ဒီလုပ်ဆောင်ချက်ကို app ထဲမှ ပြန်ယူ၍မရပါ။ ဆက်လုပ်မလား?",
+        "Remove this document from the Vault and move it to Google Drive Trash. This action cannot be undone from within the app. Do you want to continue?",
       )
     )
       return;
@@ -1415,7 +1415,7 @@ function documentAction(action, id) {
         await api("trashDocument", { fileId: d.fileId });
       } catch (error) {
         message(
-          "Vault မှဖယ်ပြီးပါပြီ။ Drive Trash သို့မရွှေ့နိုင်ပါ: " +
+          "The document has been removed from the Vault, but it could not be moved to Google Drive Trash." +
             error.message +
             " File ID: " +
             d.fileId,
@@ -1429,12 +1429,12 @@ function purgeExpiredDocuments() {
       (d) => d.status === "trashed" && trashRetention(d).expired,
     );
     if (!expired.length) {
-      message("30 ရက်ကျော်သော Trash documents မရှိပါ။");
+      message("There are no documents in Trash older than 30 days.");
       return;
     }
     if (
       !confirm(
-        `30 ရက်ကျော်သော documents ${expired.length} ခုကို Vault မှဖယ်ပြီး Google Drive Trash သို့ရွှေ့မည်။ ဆက်လုပ်မလား?`,
+        `Remove ${expired.length} document(s) older than 30 days from the Vault and move them to Google Drive Trash. Do you want to continue?`,
       )
     )
       return;
@@ -1451,8 +1451,8 @@ function purgeExpiredDocuments() {
       }
     message(
       failed
-        ? `Expired documents ကို Vault မှဖယ်ပြီးပါပြီ။ Drive Trash မပြီးသောဖိုင် ${failed} ခုရှိသည်။`
-        : `Expired documents ${expired.length} ခုကို ဖျက်ပြီးပါပြီ။`,
+        ? `Expired documents have been removed from the Vault. ${failed} file(s) could not be moved to Google Drive Trash.`
+        : `${expired.length} expired document(s) have been deleted.`,
     );
   });
 }
@@ -1497,7 +1497,7 @@ $("#passForm").onsubmit = (e) => {
   run(async () => {
     const values = Object.fromEntries(new FormData(e.target));
     e.target.reset();
-    if (values.pass !== values.confirm) throw Error("Passphrase နှစ်ခု မတူပါ။");
+    if (values.pass !== values.confirm) throw Error("The two passphrases do not match.");
     const g = generation,
       newKey = await deriveKey(values.pass, snapshot.salt),
       next = structuredClone(data),
@@ -1517,7 +1517,7 @@ $("#passForm").onsubmit = (e) => {
     snapshot = { ...snapshot, box, revision: result.revision };
     $("#passEditor").close();
     render();
-    message("Passphrase ပြောင်းပြီးပါပြီ။ Backup အသစ်ယူပါ။");
+    message("Your passphrase has been changed. Please create a new backup.");
   });
 };
 let calendarDate = new Date();
@@ -1580,7 +1580,7 @@ $("#legacyImport").onchange = (e) =>
       return;
     if (
       !confirm(
-        `${converted.records.length} records နှင့် ${converted.payments.length} payments ထည့်မည်။ ဆက်လုပ်မလား?`,
+        `Import ${converted.records.length} record(s) and ${converted.payments.length} payment(s). Do you want to continue?`,
       )
     )
       return;
@@ -1589,7 +1589,7 @@ $("#legacyImport").onchange = (e) =>
     next.payments.push(...converted.payments);
     await commit(next);
     message(
-      "Legacy import ပြီးပါပြီ။ မူလ Sheet/file ကို မဖျက်ပါနှင့်။ Imported dates/linked payments ကိုစစ်ပါ။",
+      "Legacy import completed. Do not delete the original Sheet/file. Please review the imported dates/linked payments.",
     );
   });
 
@@ -1601,12 +1601,12 @@ generate.onclick = () => {
   $("#recordForm").elements.password.value = to64(
     crypto.getRandomValues(new Uint8Array(24)),
   );
-  message("Password အသစ်ကို Save encrypted လုပ်ပါ။");
+  message("Save the new password securely in the encrypted Vault.");
 };
 
 function addSampleRecords() {
   if (!key) {
-    message("နမူနာထည့်ရန် Vault ကိုအရင်ဖွင့်ပါ။");
+    message("Unlock the Vault before adding sample records.");
     return;
   }
   $("#helpDialog").close();
@@ -1628,7 +1628,7 @@ function addSampleRecords() {
     $("#status").value = "active";
     render();
     message(
-      "နမူနာ ၃ ခုကိုကြည့်နိုင်ပါပြီ။ Edit / Save ဖြင့် ကိုယ့်အချက်အလက်ပြောင်းနိုင်သည်။",
+      "Three sample records have been added. You can customize them with your own information using Edit and Save.",
     );
   });
 }
@@ -1670,7 +1670,7 @@ function helpButton(topic) {
   b.type = "button";
   b.className = "help-dot";
   b.dataset.help = topic;
-  b.setAttribute("aria-label", topic + " အသုံးပြုနည်း");
+  b.setAttribute("aria-label", topic + " Guide");
   b.textContent = "?";
   return b;
 }
@@ -1798,11 +1798,11 @@ function openOrganizer(kind, mode = "add", oldName = "", select = null) {
   $("#organizerError").textContent = "";
   $("#organizerTitle").textContent =
     (kind === "group" ? "Group" : "Category") +
-    (mode === "rename" ? " အမည်ပြောင်းရန်" : " အသစ်");
+    (mode === "rename" ? " Rename" : " New");
   $("#organizerHint").textContent =
     kind === "group"
-      ? "ကိုယ်တိုင်စုစည်းရာ။ ဥပမာ အိမ်၊ အလုပ်၊ မိသားစု။"
-      : "Record အမျိုးအစား။ ဥပမာ Banking၊ Education၊ Travel။";
+      ? "Create a custom group. For example, Home, Work, Family."
+      : "Create a custom category. For example, Banking, Education, Travel.";
   $("#organizerDialog").showModal();
   $("#organizerName").focus();
 }
@@ -1848,8 +1848,8 @@ for (const selector of ["#groupsList", "#categoriesList"])
       if (
         !confirm(
           kind === "group"
-            ? "Group ကိုဖယ်မည်။ Records/documents မဖျက်ဘဲ Ungrouped ထားမည်။ ဆက်လုပ်မလား?"
-            : "Category ကိုဖယ်မည်။ Records မဖျက်ဘဲ Other သို့ရွှေ့မည်။ ဆက်လုပ်မလား?",
+            ? "Remove Group? Records/documents will remain ungrouped. Continue?"
+            : "Remove Category? Records will be moved to Other. Continue?",
         )
       )
         return;
@@ -1863,14 +1863,14 @@ for (const form of [$("#recordForm"), $("#docForm")])
     const b = document.createElement("button");
     b.type = "button";
     b.className = "inline-add";
-    b.textContent = kind === "group" ? "＋ Group အသစ်" : "＋ Category အသစ်";
+    b.textContent = kind === "group" ? "＋ Group" : "＋ Category";
     b.onclick = () => openOrganizer(kind, "add", "", select);
     select.after(b);
   }
 function openPayment(record) {
   if (record.isExample) {
     message(
-      "နမူနာကို Edit/Save ဖြင့် တကယ့် bill အဖြစ်ပြောင်းပြီးမှ payment မှတ်ပါ။",
+      "Edit and save the sample as an actual bill before recording a payment.",
     );
     return;
   }
@@ -1893,7 +1893,7 @@ $("#paymentForm").onsubmit = (e) => {
     const values = Object.fromEntries(new FormData(e.target)),
       next = structuredClone(data),
       record = next.records.find((r) => r.id === paymentRecordId);
-    if (!record) throw Error("Bill မရှိတော့ပါ။ Refresh လုပ်ပါ။");
+    if (!record) throw Error("Bill NOT found. Please refresh the page.");
     const amount = Number(values.amount);
     if (!Number.isFinite(amount) || amount < 0) throw Error("Invalid amount");
     next.payments.push({

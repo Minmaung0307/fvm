@@ -108,3 +108,44 @@ Sheet ထဲက စာတွေကို လက်နဲ့ မပြင်၊ �
 
 အခုလက်ရှိ Version က 2.2 အခမဲ့ပါ
 အကယ်၍ Version v3 ကို update လုပ်ပါက blazing billing အတွက် တစ်လ $20 လောက် ကုန်ကျဖွယ်ရှိပါတယ်။
+
+Google Console
+==============
+https://console.cloud.google.com/auth/audience?authuser=1&project=fvm-26
+
+Testing Mode ဆိုရင် Test Users တွေ ထည့်ပေးရမယ်
+
+Publish app လုပ်ပြီးနောက် OAuth Test users ထဲ ထည့်စရာမလိုတော့ပါဘူး။ ဒါပေမယ့် Family Vault ကို မိသားစုဝင်တွေပဲ သုံးနိုင်အောင် FAMILY_EMAILS ကို ဆက်ထားရပါမယ်။
+
+FAMILY_EMAILS မရှိရင် backend က မည်သူ့ကိုမှ ခွင့်ပြုမှာမဟုတ်ပါဘူး။ မိသားစုမဟုတ်သူတွေကိုလည်း ထည့်ထားလျှင် သူတို့ဝင်နိုင်သွားပါမယ်။
+ထည့်ရန်—
+1. Google Apps Script ဖွင့်ပါ။
+2. Family Vault backend project ကိုရွေးပါ။
+3. ဘယ်ဘက်က ⚙️ Project Settings ကိုနှိပ်ပါ။
+4. အောက်ကိုဆင်းပြီး Script Properties ကိုရှာပါ။
+5. FAMILY_EMAILS property ကိုရှာပါ။
+6. Value ထဲမှာ Gmail တစ်ခုချင်းကို comma ခြားပြီးထည့်ပါ။
+7. Save script properties ကိုနှိပ်ပါ။
+
+minmaung0307@gmail.com,honeymoe093@gmail.com,sawluemin@gmail.com
+
+သတိပြုရန်—
+- Gmail စာလုံးပေါင်း တိတိကျကျရေးပါ။
+- comma , နဲ့သာ ခြားပါ။
+- Quote အမှတ် " မထည့်ပါနဲ့။
+- Email အသစ်ထည့်တာအတွက် Apps Script ကို Deploy ပြန်လုပ်စရာမလိုပါဘူး။
+- စာရင်းကနေ email ဖယ်လိုက်ရင် အဲဒီသူက နောက်တစ်ကြိမ် backend ချိတ်ရာမှာ ဝင်ခွင့်မရတော့ပါဘူး။
+
+FAMILY_EMAILS ကို Family Vault ရဲ့ Google Apps Script project → Script Properties ထဲထည့်ရပါတယ်။
+သွားရမယ့်နေရာ—
+1. Google Apps Script ကိုဖွင့်ပါ။
+2. Family Vault အတွက် Code.gs ရှိတဲ့ Apps Script project ကိုဖွင့်ပါ။
+3. ဘယ်ဘက်က ⚙️ Project Settings ကိုနှိပ်ပါ။
+4. Script Properties အောက်မှာ FAMILY_EMAILS ကိုရှာပါ။
+5. မိသားစု Gmail တွေကို comma ခြားပြီးထည့်ပါ။
+
+မှန်ကန်တဲ့ Apps Script project ဟုတ်မဟုတ် စစ်ချင်ရင်—
+1. Apps Script → Deploy → Manage deployments
+2. Web app URL ကိုကူးပါ။
+3. VS Code ထဲက public/config.js မှာရှိတဲ့ apiUrl နဲ့ နှိုင်းယှဉ်ပါ။
+4. URL တူတဲ့ Apps Script project ထဲမှာပဲ FAMILY_EMAILS ထည့်ရပါမယ်။
