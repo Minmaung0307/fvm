@@ -25,6 +25,7 @@ import {
   paymentYears,
 } from "./payments.js";
 import { config } from "./config.js";
+import { optimizeImageUpload } from "./image-tools.js";
 import {
   deriveKey,
   seal,
@@ -189,6 +190,7 @@ async function commit(next) {
     box,
     reminders,
     emailReminders: next.settings.emailReminders === true,
+    reminderLeadDays: Number(next.settings.reminderLeadDays) || 2,
   });
   if (g !== generation) return;
   data = next;
@@ -1329,7 +1331,11 @@ function renderDocuments() {
         const kind = documentKind(d),
           trashed = d.status === "trashed",
           retention = trashed ? trashRetention(d) : null;
-        return `<article class="card doc-card doc-kind-${kind} ${trashed ? "doc-trashed" : ""}"><span class="tag">${E(d.group || "Ungrouped")} · ${E(d.status)}</span>${trashed ? `<span class="trash-retention ${retention.expired ? "expired" : ""}">${retention.expired ? "Expired — ready to delete" : retention.days + " days to restore"}</span>` : ""}<button type="button" class="doc-preview-trigger" data-action="docPreview" data-id="${E(d.id)}" aria-label="${E(d.name)} preview"><span class="doc-thumbnail" data-thumbnail-id="${E(d.id)}"><span class="doc-file-icon">${documentIcon(kind)}</span><span class="doc-file-type">${E(documentKinds[kind][0])}</span></span></button><h3>${d.favorite ? "★ " : ""}${E(d.name)}</h3><p>${E(d.originalName)} · ${(d.size / 1024).toFixed(0)} KB</p><p class="muted">${E(d.tags)}<br>Expiry: ${E(d.expiryDate || "—")}<br>${E(d.memo)}</p>${trashed ? `<p class="doc-trash-note">Trash date: ${E(String(d.deletedAt || "").slice(0, 10) || "—")}</p>` : ""}${d.recordId ? `<p>Linked: ${E(data.records.find((r) => r.id === d.recordId)?.name || "Deleted record")}</p>` : ""}${trashed ? `<button data-action="docRestore" data-id="${E(d.id)}">Restore</button><button data-action="docPermanent" data-id="${E(d.id)}" class="danger">Delete permanently</button>` : `<button data-action="docDownload" data-id="${E(d.id)}">Download</button><button data-action="docEncrypted" data-id="${E(d.id)}">Encrypted copy</button><button data-action="edit" data-id="${E(d.id)}">Edit</button><button data-action="docFavorite" data-id="${E(d.id)}">${d.favorite ? "★" : "☆"}</button><button data-action="docDelete" data-id="${E(d.id)}" class="danger">Move to Trash</button>`}</article>`;
+        const saved =
+          d.optimized && d.originalSize > d.size
+            ? Math.round((1 - d.size / d.originalSize) * 100)
+            : 0;
+        return `<article class="card doc-card doc-kind-${kind} ${trashed ? "doc-trashed" : ""}"><span class="tag">${E(d.group || "Ungrouped")} · ${E(d.status)}</span>${d.optimized ? `<span class="tag optimized-tag">Optimized${saved ? ` · ${saved}% smaller` : ""}</span>` : ""}${trashed ? `<span class="trash-retention ${retention.expired ? "expired" : ""}">${retention.expired ? "Expired — ready to delete" : retention.days + " days to restore"}</span>` : ""}<button type="button" class="doc-preview-trigger" data-action="docPreview" data-id="${E(d.id)}" aria-label="${E(d.name)} preview"><span class="doc-thumbnail" data-thumbnail-id="${E(d.id)}"><span class="doc-file-icon">${documentIcon(kind)}</span><span class="doc-file-type">${E(documentKinds[kind][0])}</span></span></button><h3>${d.favorite ? "★ " : ""}${E(d.name)}</h3><p>${E(d.originalName)} · ${(d.size / 1024).toFixed(0)} KB</p><p class="muted">${E(d.tags)}<br>Expiry: ${E(d.expiryDate || "—")}<br>${E(d.memo)}</p>${trashed ? `<p class="doc-trash-note">Trash date: ${E(String(d.deletedAt || "").slice(0, 10) || "—")}</p>` : ""}${d.recordId ? `<p>Linked: ${E(data.records.find((r) => r.id === d.recordId)?.name || "Deleted record")}</p>` : ""}${trashed ? `<button data-action="docRestore" data-id="${E(d.id)}">Restore</button><button data-action="docPermanent" data-id="${E(d.id)}" class="danger">Delete permanently</button>` : `<button data-action="docDownload" data-id="${E(d.id)}">Download</button><button data-action="docEncrypted" data-id="${E(d.id)}">Encrypted copy</button><button data-action="edit" data-id="${E(d.id)}">Edit</button><button data-action="docFavorite" data-id="${E(d.id)}">${d.favorite ? "★" : "☆"}</button><button data-action="docDelete" data-id="${E(d.id)}" class="danger">Move to Trash</button>`}</article>`;
       })
       .join("")}</div>${paginationMarkup(documentPages, "documents")}`;
   loadImageThumbnails();
@@ -1421,9 +1427,29 @@ $("#docForm").onsubmit = (e) => {
       ])
         d[k] = String(values[k] || "");
     } else {
-      const file = e.target.elements.file.files[0];
-      if (!file || file.size > config.maxDocumentBytes)
-        throw Error("Document must be 3 MiB or smaller");
+      const originalFile = e.target.elements.file.files[0];
+      if (!originalFile) throw Error("Choose a document to upload.");
+      const originalExt = originalFile.name.split(".").pop().toLowerCase();
+      if (!safeTypes[originalExt]) throw Error("Unsupported document type");
+      if (originalFile.type.startsWith("image/") && originalFile.size > 20 * 1024 * 1024)
+        throw Error("Photo must be 20 MiB or smaller before optimization.");
+      let optimized = {
+        file: originalFile,
+        optimized: false,
+        originalSize: originalFile.size,
+      };
+      if (
+        originalFile.type.startsWith("image/") &&
+        e.target.elements.optimizeImage.checked
+      )
+        optimized = await optimizeImageUpload(originalFile);
+      const file = optimized.file;
+      if (file.size > config.maxDocumentBytes)
+        throw Error(
+          originalFile.type.startsWith("image/")
+            ? "The optimized photo is still larger than 3 MiB. Choose a smaller photo."
+            : "Document must be 3 MiB or smaller.",
+        );
       const ext = file.name.split(".").pop().toLowerCase();
       if (!safeTypes[ext]) throw Error("Unsupported document type");
       const box = await sealBytes(
@@ -1446,6 +1472,10 @@ $("#docForm").onsubmit = (e) => {
         originalName: file.name,
         mimeType: safeTypes[ext],
         size: file.size,
+        originalSize: optimized.originalSize,
+        optimized: optimized.optimized,
+        imageWidth: optimized.width || 0,
+        imageHeight: optimized.height || 0,
         favorite: false,
         createdAt: new Date().toISOString(),
       });
@@ -1671,6 +1701,9 @@ function renderSettings() {
       })
       .join("");
   $("#emailOptIn").checked = data.settings.emailReminders === true;
+  $("#reminderLeadDays").value = String(
+    data.settings.reminderLeadDays || 2,
+  );
   $("#driveInfo").innerHTML =
     `သင့် Gmail ပိုင် <a href="https://drive.google.com/drive/folders/${E(snapshot.folderId)}" target="_blank" rel="noopener noreferrer">Private Drive folder</a> · <a href="https://docs.google.com/spreadsheets/d/${E(snapshot.sheetId)}/edit" target="_blank" rel="noopener noreferrer">Encrypted Google Sheet</a>`;
 }
@@ -1685,6 +1718,12 @@ $("#emailOptIn").onchange = () =>
       $("#emailOptIn").checked = data.settings.emailReminders === true;
       throw error;
     }
+  });
+$("#reminderLeadDays").onchange = () =>
+  run(async () => {
+    const next = structuredClone(data);
+    next.settings.reminderLeadDays = Number($("#reminderLeadDays").value);
+    await commit(next);
   });
 $("#changePass").onclick = () => {
   $("#passForm").reset();
@@ -1710,6 +1749,7 @@ $("#passForm").onsubmit = (e) => {
       box,
       reminders: allEvents(next).map((x) => ({ kind: x.kind, date: x.date })),
       emailReminders: next.settings.emailReminders === true,
+      reminderLeadDays: Number(next.settings.reminderLeadDays) || 2,
     });
     if (g !== generation) return;
     key = newKey;

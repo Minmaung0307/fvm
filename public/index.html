@@ -177,9 +177,19 @@
               <div id="categoriesList"></div>
             </section>
           </div>
-          <label class="check"
-            ><input id="emailOptIn" type="checkbox" /> Email me a private daily summary when an alert is overdue or due within 2 days. Only my email address and reminder dates are stored on the reminder server.</label
-          >
+          <div class="reminder-settings">
+            <label class="check"
+              ><input id="emailOptIn" type="checkbox" /> Email me a private daily summary when an alert is overdue or approaching.</label
+            >
+            <label>Send upcoming reminders
+              <select id="reminderLeadDays">
+                <option value="1">1 day before</option>
+                <option value="2">2 days before</option>
+                <option value="7">7 days before</option>
+              </select>
+            </label>
+            <p class="muted">Only your email address, alert type, and reminder date are stored by the reminder service. Record names and private details stay encrypted.</p>
+          </div>
           <p id="driveInfo"></p>
           <button id="changePass">Change Passphrase</button
           ><label class="import"
@@ -272,11 +282,14 @@
         <input name="id" type="hidden" /><label
           >Name<input name="name" required maxlength="150" /></label
         ><label
-          >File (PDF, image, DOCX, XLSX, text — max 3 MiB)<input
+          >File (PDF, image, DOCX, XLSX, text)<input
             name="file"
             type="file"
             accept=".pdf,.png,.jpg,.jpeg,.webp,.docx,.xlsx,.txt,.csv"
         /></label>
+        <label id="imageOptimizeOption" class="check"
+          ><input name="optimizeImage" type="checkbox" checked /> Optimize photos before encrypted upload (recommended; max 2000 px)</label
+        ><p id="documentSizeHint" class="muted">Photos can be selected up to 20 MiB and will be reduced to fit. Other files must be 3 MiB or smaller.</p>
         <div class="form-grid">
           <label>Group<select name="group"></select></label
           ><label

@@ -138,7 +138,7 @@ export function initialData() {
       "အာမခံ",
       "စာရင်းသွင်းဝန်ဆောင်မှု",
     ],
-    settings: { emailReminders: false },
+    settings: { emailReminders: false, reminderLeadDays: 2 },
   };
 }
 export function normalize(value) {
@@ -155,6 +155,11 @@ export function normalize(value) {
     ? value.groups.filter((g) => typeof g === "string").slice(0, 100)
     : [];
   value.settings = value.settings || { emailReminders: false };
+  value.settings.reminderLeadDays = [1, 2, 7].includes(
+    Number(value.settings.reminderLeadDays),
+  )
+    ? Number(value.settings.reminderLeadDays)
+    : 2;
   for (const r of value.records) {
     if (typeof r.id !== "string" || typeof r.name !== "string")
       throw Error("Invalid record");
