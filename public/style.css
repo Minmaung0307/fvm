@@ -218,6 +218,7 @@ p {
   border-color: #d9d4fc;
   background: #ffffffcc;
 }
+.welcome-banner{display:block}.welcome-banner summary{display:flex;align-items:center;justify-content:space-between;gap:14px;cursor:pointer;list-style:none}.welcome-banner summary::-webkit-details-marker{display:none}.welcome-banner summary>span:first-child{display:grid;gap:1px}.welcome-banner summary small{color:#817b99;font-size:10px;font-weight:500}.welcome-toggle{padding:5px 10px;border:1px solid #d6d1f4;border-radius:999px;background:#ffffffb8;color:#5a50cf;font-size:10px;font-weight:700}.welcome-banner[open] .welcome-toggle::before{content:'Hide';font-size:10px}.welcome-banner[open] .welcome-toggle{font-size:0}.welcome-content{display:flex;align-items:center;justify-content:space-between;gap:18px;padding-top:14px;margin-top:12px;border-top:1px solid #dcd7f3}
 nav {
   display: flex;
   gap: 6px;
@@ -887,6 +888,10 @@ th {
   }
   .welcome-banner p {
     line-height: 1.9;
+  }
+  .welcome-content {
+    align-items: stretch;
+    flex-direction: column;
   }
   .welcome-banner button {
     font-size: 12px;

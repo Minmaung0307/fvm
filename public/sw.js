@@ -1,4 +1,4 @@
-const CACHE = "family-vault-personal-shell-organizer-actions-v4-11";
+const CACHE = "family-vault-personal-shell-navigation-onboarding-v4-15";
 const SHELL = [
   "/billing-dashboard.css",
   "/document-preview.css",
@@ -37,6 +37,9 @@ const SHELL = [
   "/view-modes.css",
   "/settings-guide.js",
   "/settings-guide.css",
+  "/seasonal.css",
+  "/seasonal-core.js",
+  "/seasonal.js",
 ];
 self.addEventListener("install", (e) =>
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))),

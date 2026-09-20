@@ -25,13 +25,16 @@ body {
 }
 
 header {
-  background:#fffefdec;
-  border-bottom-color:#ddddeb;
-  box-shadow:0 7px 28px #37325c0a;
+  background:linear-gradient(110deg,#282443 0%,#443ba1 55%,#326f98 100%);
+  border-bottom-color:#554bb2;
+  box-shadow:0 9px 30px #27204426;
 }
 
-header .brand {color:#27263e}
-header .privacy-badge {color:#85849a}
+header .brand {color:#fff}
+header .privacy-badge {color:#dfddff}
+header button{color:#fff;border-color:#ffffff4a;background:#ffffff16}
+header button:hover{color:#302a73;background:#fff;border-color:#fff}
+header #lock{color:#302a73;background:#f2efff;border-color:#f2efff}
 
 /* Page heading gets its own subtle visual area */
 #workspace>.heading {
@@ -76,17 +79,19 @@ header .privacy-badge {color:#85849a}
 }
 .welcome-banner button {background:#fffefd;border-color:#cbc5f7}
 
-nav {
-  border:1px solid #e2e0ed;
+#workspace>nav {
+  border:1px solid #464080;
   border-radius:16px;
   padding:7px;
-  background:#ffffffa3;
-  box-shadow:0 6px 24px #3e3a6308;
+  background:linear-gradient(115deg,#343052,#494184 58%,#376b89);
+  box-shadow:0 9px 28px #312b5a20;
 }
-nav button.selected {
+#workspace>nav button{color:#dedcf3}
+#workspace>nav button:hover{color:#fff;background:#ffffff17}
+#workspace>nav button.selected {
   color:#4d43cd;
-  background:linear-gradient(135deg,#dedaff,#ece9ff);
-  box-shadow:0 4px 13px #574ee714;
+  background:linear-gradient(135deg,#fff,#efedff);
+  box-shadow:0 5px 16px #17132e2b;
 }
 
 .toolbar {

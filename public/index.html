@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="/quick-filters.css" />
     <link rel="stylesheet" href="/legal.css" />
     <link rel="stylesheet" href="/billing-dashboard.css" />
+    <link rel="stylesheet" href="/seasonal.css" />
   </head>
   <body>
     <header>
@@ -67,16 +68,19 @@
           </div>
         </div>
         <div id="stats" class="stats"></div>
-        <section class="welcome-banner">
-          <div>
-            <strong>Take control of your Vault!</strong>
-            <p>
-              Organize your accounts, bills, and documents into groups.
-              If you're not sure where to start, check out the sample records.
-            </p>
+        <details id="onboardingPanel" class="welcome-banner">
+          <summary><span><strong>Getting started</strong><small>Tips and demo records</small></span><span class="welcome-toggle">Show</span></summary>
+          <div class="welcome-content">
+            <div>
+              <strong>Take control of your Vault!</strong>
+              <p>
+                Organize your accounts, bills, and documents into groups.
+                If you're not sure where to start, check out the sample records.
+              </p>
+            </div>
+            <button id="addSamples">Add Demo Records</button>
           </div>
-          <button id="addSamples">Add Demo Records</button>
-        </section>
+        </details>
         <nav aria-label="Vault navigation">
           <button data-view="records" class="selected">
             <span aria-hidden="true">▦</span
@@ -437,5 +441,6 @@
     <script type="module" src="/app.js"></script>
     <script type="module" src="/view-modes.js"></script>
     <script type="module" src="/settings-guide.js"></script>
+    <script type="module" src="/seasonal.js"></script>
   </body>
 </html>

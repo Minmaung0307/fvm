@@ -120,6 +120,7 @@ function lock() {
   $("#content").replaceChildren();
   $("#stats").replaceChildren();
   $("#recordForm").reset();
+  $("#onboardingPanel").removeAttribute("data-initialized");
   $("#editor").close();
   $("#backupPrompt").close();
   $("#docEditor").close();
@@ -405,6 +406,11 @@ function render() {
   const active = data.records.filter(
     (r) => r.status === "active" && !r.isExample,
   );
+  const onboarding = $("#onboardingPanel");
+  if (!onboarding.dataset.initialized) {
+    onboarding.open = !data.records.some((record) => !record.isExample);
+    onboarding.dataset.initialized = "true";
+  }
   const next30 = addDays(now, 30),
     next90 = addDays(now, 90),
     next180 = addDays(now, 180);
