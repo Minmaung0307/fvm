@@ -214,7 +214,7 @@
           /></label>
         </div>
         <p class="muted">
-          The Vault will lock after 5 minutes of inactivity. See the setup guide to enable background reminders.
+          The Vault locks after 5 minutes of inactivity, or 15 minutes while a form is open. Typing and editing keep it unlocked. See the setup guide to enable background reminders.
         </p>
       </section>
       <p id="message" role="status" aria-live="polite"></p>
@@ -250,6 +250,7 @@
           </p>
           <textarea name="providerHistory" rows="3"></textarea>
         </details>
+        <p id="recordSaveStatus" class="form-save-status" role="alert" aria-live="assertive" hidden></p>
         <div class="dialog-actions">
           <button type="button" id="delete" class="danger">
             Delete permanently</button

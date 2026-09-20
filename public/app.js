@@ -148,20 +148,36 @@ async function api(action, extra = {}) {
   if (!user || !googleToken)
     throw Error("Google login နှင့် Drive permission လိုအပ်ပါသည်။");
   const idToken = await user.getIdToken();
-  const response = await fetch(config.apiUrl, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ action, idToken, googleToken, ...extra }),
-    redirect: "follow",
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45000);
+  let response;
+  try {
+    response = await fetch(config.apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action, idToken, googleToken, ...extra }),
+      redirect: "follow",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error.name === "AbortError")
+      throw Error("The save took too long. Check your connection, then try again.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!response.ok) throw Error("Backend connection failed");
   const result = await response.json();
   if (!result.ok) throw Error(result.error || "Request failed");
   return result;
 }
-async function run(fn) {
+async function run(fn, errorTarget = null) {
   if (busy) return;
+  if (errorTarget) {
+    errorTarget.textContent = "";
+    errorTarget.hidden = true;
+  }
   busy = true;
   $("#workspace").setAttribute("aria-busy", "true");
   $("#busyIndicator").hidden = false;
@@ -170,6 +186,11 @@ async function run(fn) {
     await fn();
   } catch (e) {
     message(e.message);
+    if (errorTarget) {
+      errorTarget.textContent = `Could not save: ${e.message}`;
+      errorTarget.hidden = false;
+      errorTarget.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   } finally {
     busy = false;
     $("#workspace").setAttribute("aria-busy", "false");
@@ -710,6 +731,8 @@ function edit(id, type = "account", draft) {
   }
   $("#delete").hidden = !id;
   $("#editorTitle").textContent = id ? "Edit record" : "Add new record";
+  $("#recordSaveStatus").textContent = "";
+  $("#recordSaveStatus").hidden = true;
   updateAccountStateOptions();
   setRecordSections();
   $("#editor").showModal();
@@ -734,7 +757,7 @@ $("#recordForm").onsubmit = (e) => {
     await commit(next);
     $("#editor").close();
     e.target.reset();
-  });
+  }, $("#recordSaveStatus"));
 };
 function deleteRecord(id) {
   run(async () => {
@@ -1131,15 +1154,34 @@ $("#notifications").onclick = () =>
         : "Browser alerts are on. A test notification was sent to this device, not by email. Email reminders are separate: enable them in Settings to receive a private email when an alert is overdue or due within 2 days.",
     );
   });
-for (const event of ["pointerdown", "keydown", "touchstart"])
+const activityEvents = [
+  "pointerdown",
+  "pointermove",
+  "keydown",
+  "input",
+  "change",
+  "touchstart",
+  "wheel",
+  "scroll",
+];
+for (const event of activityEvents)
   document.addEventListener(event, () => (lastActivity = Date.now()), {
     passive: true,
+    capture: event === "scroll",
   });
+function activeIdleMinutes() {
+  const editing = ["#editor", "#docEditor", "#paymentDialog", "#organizerDialog", "#passEditor"]
+    .some((selector) => $(selector)?.open);
+  return editing
+    ? Math.max(config.idleMinutes, Number(config.formIdleMinutes) || 15)
+    : config.idleMinutes;
+}
 setInterval(() => {
-  if (key && Date.now() - lastActivity > config.idleMinutes * 60000) lock();
+  if (key && Date.now() - lastActivity > activeIdleMinutes() * 60000) lock();
 }, 10000);
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden && key) lock();
+  if (!document.hidden && key && Date.now() - lastActivity > activeIdleMinutes() * 60000)
+    lock();
 });
 try {
   if (config.firebase.apiKey.startsWith("YOUR_"))

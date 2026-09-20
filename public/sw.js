@@ -1,4 +1,4 @@
-const CACHE = "family-vault-personal-shell-stripe-support-v4-8";
+const CACHE = "family-vault-personal-shell-organizer-actions-v4-11";
 const SHELL = [
   "/billing-dashboard.css",
   "/document-preview.css",

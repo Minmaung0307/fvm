@@ -9,6 +9,7 @@ export const config = {
   apiUrl: 'https://script.google.com/macros/s/AKfycbx_bsOI7gf8vZ6GYVANbdoEgvSOj6GkGF_whD35ckHtxdEOcIJmLCTl0_sFbbywjVr_/exec',
   currency: 'USD',
   idleMinutes: 5,
+  formIdleMinutes: 15,
   maxDocumentBytes: 3 * 1024 * 1024,
   supportPaymentLinks: [
     { label: 'Coffee Me', url: 'https://buy.stripe.com/5kQ28r5fCa9E8pj9VE1B601' },

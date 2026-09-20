@@ -668,6 +668,16 @@ dialog p {
   font-size: 12px;
   color: #8c8499;
 }
+.form-save-status {
+  margin: 18px 0 -10px;
+  padding: 12px 14px;
+  border: 1px solid #efc7cc;
+  border-radius: 12px;
+  background: #fff3f4;
+  color: #a23d4a;
+  font-weight: 650;
+  line-height: 1.45;
+}
 .dialog-actions {
   display: flex;
   justify-content: space-between;
