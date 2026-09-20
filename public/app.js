@@ -575,10 +575,10 @@ const billNames = ["amount", "frequency", "dueDate", "paymentStatus"];
 const cycleLabels = {
   none: "None",
   monthly: "Monthly",
-  quarterly: "Quarterly / 3 mo",
-  "four-month": "Every 4 months",
-  semiannual: "Semiannual / 6 mo",
-  yearly: "Annual / yearly",
+  quarterly: "Quarterly",
+  "four-month": "Every 4/mo",
+  semiannual: "Semiannual",
+  yearly: "Annual",
   "one-time": "One time",
   "not-applicable": "Not applicable",
   "active-current": "Active / current",
@@ -2042,6 +2042,39 @@ document.addEventListener("keydown", (e) => {
 window.addEventListener("resize", hideTooltip);
 document.addEventListener("scroll", hideTooltip, true);
 attachHelp();
+
+$("#supportOpen").onclick = () => {
+  $("#supportForm").reset();
+  $("#supportDialog").showModal();
+};
+$("#supportClose").onclick = () => $("#supportDialog").close();
+$("#supportForm").onsubmit = (e) => {
+  e.preventDefault();
+  run(async () => {
+    if (!user || !googleToken)
+      throw Error("Please sign in with Google before sending a support message.");
+    const values = Object.fromEntries(new FormData(e.target));
+    await api("sendSupport", {
+      subject: String(values.subject || "").trim(),
+      message: String(values.message || "").trim(),
+    });
+    $("#supportDialog").close();
+    e.target.reset();
+    message("Your support message has been sent.");
+  });
+};
+const supportPaymentLinks = (config.supportPaymentLinks || []).filter(
+  item => item && typeof item.label === "string" &&
+    /^https:\/\/buy\.stripe\.com\/[A-Za-z0-9_-]+$/.test(item.url || "")
+);
+if (supportPaymentLinks.length) {
+  $("#supportAppOpen").hidden = false;
+  $("#supportPaymentChoices").innerHTML = supportPaymentLinks.map((item, index) =>
+    `<a class="support-payment-choice choice-${index}" href="${E(item.url)}" target="_blank" rel="noopener noreferrer"><span>${index === 0 ? "☕" : index === 1 ? "🍔" : "🍽️"}</span><strong>${E(item.label)}</strong><small>Continue with Stripe →</small></a>`
+  ).join("");
+}
+$("#supportAppOpen").onclick = () => $("#supportAppDialog").showModal();
+$("#supportAppClose").onclick = () => $("#supportAppDialog").close();
 
 function refreshCategories() {
   const filter = $("#category"),

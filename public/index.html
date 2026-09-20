@@ -220,7 +220,7 @@
       <p id="message" role="status" aria-live="polite"></p>
       <p id="busyIndicator" hidden role="status">Connecting securely…</p>
     </main>
-    <footer class="site-legal-links"><a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a><a href="/terms.html" target="_blank" rel="noopener">Terms of Service</a><a href="mailto:minmaung0307@gmail.com">Support</a></footer>
+    <footer class="site-legal-links"><a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a><a href="/terms.html" target="_blank" rel="noopener">Terms of Service</a><button id="supportOpen" type="button">Support</button><button id="supportAppOpen" class="coffee-link" type="button" hidden>☕ Support this app</button></footer>
     <dialog id="editor">
       <form id="recordForm">
         <div class="heading">
@@ -407,6 +407,30 @@
       </div>
       <div id="helpContent"></div>
       <button id="guideSamples" type="button">Add 3 Demo Records</button>
+    </dialog>
+    <dialog id="supportDialog">
+      <form id="supportForm">
+        <div class="heading">
+          <div><p class="eyebrow">PRIVATE SUPPORT</p><h2>Contact Family Vault</h2></div>
+          <button id="supportClose" type="button" aria-label="Close support form">✕</button>
+        </div>
+        <p>Your support message will be sent securely through Family Vault. The administrator's email address is not displayed.</p>
+        <label>Subject<input name="subject" required maxlength="100" placeholder="How can we help?" /></label>
+        <label>Message<textarea name="message" required minlength="10" maxlength="2000" rows="6" placeholder="Describe the problem or suggestion…"></textarea></label>
+        <p class="muted">You must be signed in. Your verified Gmail address will be included so the administrator can reply.</p>
+        <button class="primary">Send support message</button>
+      </form>
+    </dialog>
+    <dialog id="supportAppDialog">
+      <div class="support-app-shell">
+        <div class="heading">
+          <div><p class="eyebrow">THANK YOU</p><h2>Support Family Vault</h2></div>
+          <button id="supportAppClose" type="button" aria-label="Close">✕</button>
+        </div>
+        <p>If Family Vault is useful to you, you can support its upkeep. Choose any option below.</p>
+        <div id="supportPaymentChoices" class="support-payment-choices"></div>
+        <p class="muted">Payments are handled securely by Stripe. Family Vault never sees or stores your card information.</p>
+      </div>
     </dialog>
     <div id="fieldTooltip" class="field-tooltip" role="tooltip" hidden></div>
     <script type="module" src="/app.js"></script>
