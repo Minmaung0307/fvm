@@ -79,9 +79,9 @@ let auth,
   pageSize = (() => {
     try {
       const saved = Number(localStorage.getItem("family-vault-page-size"));
-      return PAGE_SIZES.includes(saved) ? saved : 20;
+      return PAGE_SIZES.includes(saved) ? saved : 200;
     } catch {
-      return 20;
+      return 200;
     }
   })();
 const today = () => {
@@ -163,7 +163,9 @@ async function api(action, extra = {}) {
     });
   } catch (error) {
     if (error.name === "AbortError")
-      throw Error("The save took too long. Check your connection, then try again.");
+      throw Error(
+        "The save took too long. Check your connection, then try again.",
+      );
     throw error;
   } finally {
     clearTimeout(timeout);
@@ -387,13 +389,25 @@ function renderPaymentHistory() {
   const trashed = data.payments
     .filter((payment) => payment.deletedAt)
     .sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt)));
-  $("#resultCount").textContent = `${allActive.length} payments · ${money(totals.total)} recorded`;
+  $("#resultCount").textContent =
+    `${allActive.length} payments · ${money(totals.total)} recorded`;
   const tabs = `<div class="payment-tabs" role="group" aria-label="Payment history view"><button type="button" data-action="paymentMode" data-mode="history" aria-pressed="${paymentHistoryMode === "history"}">History <span>${allActive.length}</span></button><button type="button" data-action="paymentMode" data-mode="trash" aria-pressed="${paymentHistoryMode === "trash"}">Recently removed <span>${trashed.length}</span></button></div>`;
   if (paymentHistoryMode === "trash") {
-    $("#content").innerHTML = `<section class="payment-intro"><div><span class="eyebrow">PAYMENT RECORDS</span><h2>Recently removed</h2><p>Restore a payment removed by mistake, or delete it permanently.</p></div>${tabs}</section><div class="payment-trash-list">${trashed.length ? trashed.map((payment) => `<div class="payment-trash-row"><time>${E(payment.date)}</time><span><strong>${E(payment.name)}</strong><small>${E(payment.memo || "No memo")}</small></span><strong>${money(payment.amount)}</strong><div><button type="button" data-action="restorePayment" data-id="${E(payment.id)}">Restore</button><button type="button" class="danger" data-action="deletePaymentPermanent" data-id="${E(payment.id)}">Delete permanently</button></div></div>`).join("") : '<div class="payment-empty"><span aria-hidden="true">✓</span><h3>No removed payments</h3><p>Payments removed from history can be restored here.</p></div>'}</div>`;
+    $("#content").innerHTML =
+      `<section class="payment-intro"><div><span class="eyebrow">PAYMENT RECORDS</span><h2>Recently removed</h2><p>Restore a payment removed by mistake, or delete it permanently.</p></div>${tabs}</section><div class="payment-trash-list">${trashed.length ? trashed.map((payment) => `<div class="payment-trash-row"><time>${E(payment.date)}</time><span><strong>${E(payment.name)}</strong><small>${E(payment.memo || "No memo")}</small></span><strong>${money(payment.amount)}</strong><div><button type="button" data-action="restorePayment" data-id="${E(payment.id)}">Restore</button><button type="button" class="danger" data-action="deletePaymentPermanent" data-id="${E(payment.id)}">Delete permanently</button></div></div>`).join("") : '<div class="payment-empty"><span aria-hidden="true">✓</span><h3>No removed payments</h3><p>Payments removed from history can be restored here.</p></div>'}</div>`;
     return;
   }
-  $("#content").innerHTML = `<section class="payment-intro"><div><span class="eyebrow">PAYMENT RECORDS</span><h2>Monthly payment history</h2><p>Payments are grouped by paid month. These entries record payments; they do not transfer money.</p></div>${tabs}</section><div class="payment-summary"><div><span>Total recorded</span><strong>${money(totals.total)}</strong></div><div><span>This month</span><strong>${money(totals.currentMonth)}</strong></div><div><span>Payments</span><strong>${totals.count}</strong></div><div><span>Months tracked</span><strong>${totals.months}</strong></div></div><div class="payment-controls"><label>Year <select data-payment-year><option value="all">All years</option>${paymentYears(allActive).map((year) => `<option value="${year}"${paymentYearFilter === year ? " selected" : ""}>${year}</option>`).join("")}</select></label><span>${visible.length} payment${visible.length === 1 ? "" : "s"}</span></div><div class="payment-months">${groups.length ? groups.map((group, index) => `<details class="payment-month"${index === 0 ? " open" : ""}><summary><span><strong>${E(paymentMonthLabel(group.month))}</strong><small>${group.entries.length} payment${group.entries.length === 1 ? "" : "s"}</small></span><strong>${money(group.total)}</strong></summary><div class="payment-table-wrap"><table class="payment-table"><thead><tr><th>Paid date</th><th>Bill / service</th><th>Memo</th><th>Amount</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${group.entries.map((payment) => `<tr><td data-label="Paid date">${E(payment.date)}</td><td data-label="Bill / service"><strong>${E(payment.name)}</strong></td><td data-label="Memo">${E(payment.memo || "—")}</td><td data-label="Amount"><strong>${money(payment.amount)}</strong></td><td class="payment-actions"><button type="button" data-action="trashPayment" data-id="${E(payment.id)}">Remove</button></td></tr>`).join("")}</tbody></table></div></details>`).join("") : '<div class="payment-empty"><span aria-hidden="true">↗</span><h3>No payments found</h3><p>Record a payment from an actual Bill, or choose another year.</p></div>'}</div>`;
+  $("#content").innerHTML =
+    `<section class="payment-intro"><div><span class="eyebrow">PAYMENT RECORDS</span><h2>Monthly payment history</h2><p>Payments are grouped by paid month. These entries record payments; they do not transfer money.</p></div>${tabs}</section><div class="payment-summary"><div><span>Total recorded</span><strong>${money(totals.total)}</strong></div><div><span>This month</span><strong>${money(totals.currentMonth)}</strong></div><div><span>Payments</span><strong>${totals.count}</strong></div><div><span>Months tracked</span><strong>${totals.months}</strong></div></div><div class="payment-controls"><label>Year <select data-payment-year><option value="all">All years</option>${paymentYears(
+      allActive,
+    )
+      .map(
+        (year) =>
+          `<option value="${year}"${paymentYearFilter === year ? " selected" : ""}>${year}</option>`,
+      )
+      .join(
+        "",
+      )}</select></label><span>${visible.length} payment${visible.length === 1 ? "" : "s"}</span></div><div class="payment-months">${groups.length ? groups.map((group, index) => `<details class="payment-month"${index === 0 ? " open" : ""}><summary><span><strong>${E(paymentMonthLabel(group.month))}</strong><small>${group.entries.length} payment${group.entries.length === 1 ? "" : "s"}</small></span><strong>${money(group.total)}</strong></summary><div class="payment-table-wrap"><table class="payment-table"><thead><tr><th>Paid date</th><th>Bill / service</th><th>Memo</th><th>Amount</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${group.entries.map((payment) => `<tr><td data-label="Paid date">${E(payment.date)}</td><td data-label="Bill / service"><strong>${E(payment.name)}</strong></td><td data-label="Memo">${E(payment.memo || "—")}</td><td data-label="Amount"><strong>${money(payment.amount)}</strong></td><td class="payment-actions"><button type="button" data-action="trashPayment" data-id="${E(payment.id)}">Remove</button></td></tr>`).join("")}</tbody></table></div></details>`).join("") : '<div class="payment-empty"><span aria-hidden="true">↗</span><h3>No payments found</h3><p>Record a payment from an actual Bill, or choose another year.</p></div>'}</div>`;
 }
 function render() {
   if (!key) return;
@@ -768,7 +782,9 @@ $("#recordForm").onsubmit = (e) => {
 function deleteRecord(id) {
   run(async () => {
     if (
-      !confirm("Permanently delete this record? Its payment history will be retained. Proceed?")
+      !confirm(
+        "Permanently delete this record? Its payment history will be retained. Proceed?",
+      )
     )
       return;
     const next = structuredClone(data);
@@ -812,7 +828,9 @@ $("#content").onclick = (e) => {
     if (!payment) return;
     if (
       b.dataset.action === "trashPayment" &&
-      !confirm("Remove this payment from the monthly history? You can restore it from Recently removed.")
+      !confirm(
+        "Remove this payment from the monthly history? You can restore it from Recently removed.",
+      )
     )
       return;
     if (
@@ -827,7 +845,9 @@ $("#content").onclick = (e) => {
         target.deletedAt = new Date().toISOString();
       if (b.dataset.action === "restorePayment") delete target.deletedAt;
       if (b.dataset.action === "deletePaymentPermanent")
-        next.payments = next.payments.filter((item) => item.id !== b.dataset.id);
+        next.payments = next.payments.filter(
+          (item) => item.id !== b.dataset.id,
+        );
       await commit(next);
     });
     return;
@@ -1064,11 +1084,7 @@ $("#restore").onchange = (e) =>
     if (!Array.isArray(restored.records) || !Array.isArray(restored.payments))
       throw Error("Invalid backup data");
     if (g !== generation) return;
-    if (
-      confirm(
-        "Replace current vault data with backup? Continue?",
-      )
-    ) {
+    if (confirm("Replace current vault data with backup? Continue?")) {
       if (restored.documentKey) {
         const raw = await unseal(
           restored.documentKey,
@@ -1176,8 +1192,13 @@ for (const event of activityEvents)
     capture: event === "scroll",
   });
 function activeIdleMinutes() {
-  const editing = ["#editor", "#docEditor", "#paymentDialog", "#organizerDialog", "#passEditor"]
-    .some((selector) => $(selector)?.open);
+  const editing = [
+    "#editor",
+    "#docEditor",
+    "#paymentDialog",
+    "#organizerDialog",
+    "#passEditor",
+  ].some((selector) => $(selector)?.open);
   return editing
     ? Math.max(config.idleMinutes, Number(config.formIdleMinutes) || 15)
     : config.idleMinutes;
@@ -1186,7 +1207,11 @@ setInterval(() => {
   if (key && Date.now() - lastActivity > activeIdleMinutes() * 60000) lock();
 }, 10000);
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && key && Date.now() - lastActivity > activeIdleMinutes() * 60000)
+  if (
+    !document.hidden &&
+    key &&
+    Date.now() - lastActivity > activeIdleMinutes() * 60000
+  )
     lock();
 });
 try {
@@ -1479,7 +1504,10 @@ $("#docForm").onsubmit = (e) => {
       if (!originalFile) throw Error("Choose a document to upload.");
       const originalExt = originalFile.name.split(".").pop().toLowerCase();
       if (!safeTypes[originalExt]) throw Error("Unsupported document type");
-      if (originalFile.type.startsWith("image/") && originalFile.size > 20 * 1024 * 1024)
+      if (
+        originalFile.type.startsWith("image/") &&
+        originalFile.size > 20 * 1024 * 1024
+      )
         throw Error("Photo must be 20 MiB or smaller before optimization.");
       let optimized = {
         file: originalFile,
@@ -1749,9 +1777,7 @@ function renderSettings() {
       })
       .join("");
   $("#emailOptIn").checked = data.settings.emailReminders === true;
-  $("#reminderLeadDays").value = String(
-    data.settings.reminderLeadDays || 2,
-  );
+  $("#reminderLeadDays").value = String(data.settings.reminderLeadDays || 2);
   $("#driveInfo").innerHTML =
     `သင့် Gmail ပိုင် <a href="https://drive.google.com/drive/folders/${E(snapshot.folderId)}" target="_blank" rel="noopener noreferrer">Private Drive folder</a> · <a href="https://docs.google.com/spreadsheets/d/${E(snapshot.sheetId)}/edit" target="_blank" rel="noopener noreferrer">Encrypted Google Sheet</a>`;
 }
@@ -1784,7 +1810,8 @@ $("#passForm").onsubmit = (e) => {
   run(async () => {
     const values = Object.fromEntries(new FormData(e.target));
     e.target.reset();
-    if (values.pass !== values.confirm) throw Error("The two passphrases do not match.");
+    if (values.pass !== values.confirm)
+      throw Error("The two passphrases do not match.");
     const g = generation,
       newKey = await deriveKey(values.pass, snapshot.salt),
       next = structuredClone(data),
@@ -1850,10 +1877,18 @@ function renderCalendar(all, ids) {
           )
           .join("")}</div>`;
       },
-    ).join("")}</div><div class="calendar-list-heading"><div><h3>${E(filterLabels[calendarFilter])}</h3><p>${listEvents.length} of ${selectedEvents.length} alerts</p></div><div class="calendar-filter-bar" role="group" aria-label="Filter alerts">${CALENDAR_FILTERS.map((filter) => `<button type="button" data-calendar-filter="${filter}" aria-pressed="${calendarFilter === filter}">${E(filterLabels[filter])} <span>${counts[filter]}</span></button>`).join("")}</div></div><div class="calendar-events">${listEvents.length ? listEvents.map((e) => {
-      const status = calendarEventStatus(e, currentDate);
-      return `<div class="event calendar-event-row ${status}"><time datetime="${E(e.date)}">${E(e.date)}</time><span><strong>${E(e.name)}</strong><small>${E(calendarKindLabel(e.kind))} · ${E(status === "overdue" ? "Needs attention" : status === "today" ? "Today" : "Upcoming")}</small></span><button type="button" data-action="edit" data-id="${E(e.id)}">Open</button></div>`;
-    }).join("") : '<div class="calendar-empty"><span aria-hidden="true">✓</span><strong>No alerts in this view</strong><p>Choose another filter or add a due, renewal, or expiry date.</p></div>'}</div>`;
+    ).join(
+      "",
+    )}</div><div class="calendar-list-heading"><div><h3>${E(filterLabels[calendarFilter])}</h3><p>${listEvents.length} of ${selectedEvents.length} alerts</p></div><div class="calendar-filter-bar" role="group" aria-label="Filter alerts">${CALENDAR_FILTERS.map((filter) => `<button type="button" data-calendar-filter="${filter}" aria-pressed="${calendarFilter === filter}">${E(filterLabels[filter])} <span>${counts[filter]}</span></button>`).join("")}</div></div><div class="calendar-events">${
+      listEvents.length
+        ? listEvents
+            .map((e) => {
+              const status = calendarEventStatus(e, currentDate);
+              return `<div class="event calendar-event-row ${status}"><time datetime="${E(e.date)}">${E(e.date)}</time><span><strong>${E(e.name)}</strong><small>${E(calendarKindLabel(e.kind))} · ${E(status === "overdue" ? "Needs attention" : status === "today" ? "Today" : "Upcoming")}</small></span><button type="button" data-action="edit" data-id="${E(e.id)}">Open</button></div>`;
+            })
+            .join("")
+        : '<div class="calendar-empty"><span aria-hidden="true">✓</span><strong>No alerts in this view</strong><p>Choose another filter or add a due, renewal, or expiry date.</p></div>'
+    }</div>`;
 }
 $("#content").addEventListener("click", (e) => {
   const filter = e.target.closest("[data-calendar-filter]");
@@ -2100,7 +2135,9 @@ $("#supportForm").onsubmit = (e) => {
   e.preventDefault();
   run(async () => {
     if (!user || !googleToken)
-      throw Error("Please sign in with Google before sending a support message.");
+      throw Error(
+        "Please sign in with Google before sending a support message.",
+      );
     const values = Object.fromEntries(new FormData(e.target));
     await api("sendSupport", {
       subject: String(values.subject || "").trim(),
@@ -2112,14 +2149,19 @@ $("#supportForm").onsubmit = (e) => {
   });
 };
 const supportPaymentLinks = (config.supportPaymentLinks || []).filter(
-  item => item && typeof item.label === "string" &&
-    /^https:\/\/buy\.stripe\.com\/[A-Za-z0-9_-]+$/.test(item.url || "")
+  (item) =>
+    item &&
+    typeof item.label === "string" &&
+    /^https:\/\/buy\.stripe\.com\/[A-Za-z0-9_-]+$/.test(item.url || ""),
 );
 if (supportPaymentLinks.length) {
   $("#supportAppOpen").hidden = false;
-  $("#supportPaymentChoices").innerHTML = supportPaymentLinks.map((item, index) =>
-    `<a class="support-payment-choice choice-${index}" href="${E(item.url)}" target="_blank" rel="noopener noreferrer"><span>${index === 0 ? "☕" : index === 1 ? "🍔" : "🍽️"}</span><strong>${E(item.label)}</strong><small>Continue with Stripe →</small></a>`
-  ).join("");
+  $("#supportPaymentChoices").innerHTML = supportPaymentLinks
+    .map(
+      (item, index) =>
+        `<a class="support-payment-choice choice-${index}" href="${E(item.url)}" target="_blank" rel="noopener noreferrer"><span>${index === 0 ? "☕" : index === 1 ? "🍔" : "🍽️"}</span><strong>${E(item.label)}</strong><small>Continue with Stripe →</small></a>`,
+    )
+    .join("");
 }
 $("#supportAppOpen").onclick = () => $("#supportAppDialog").showModal();
 $("#supportAppClose").onclick = () => $("#supportAppDialog").close();

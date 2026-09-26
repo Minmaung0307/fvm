@@ -1,4 +1,4 @@
-const CACHE = "family-vault-personal-shell-navigation-onboarding-v4-15";
+const CACHE = "family-vault-personal-shell-centered-gate-v4-16";
 const SHELL = [
   "/billing-dashboard.css",
   "/document-preview.css",

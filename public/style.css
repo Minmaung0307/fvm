@@ -1087,6 +1087,61 @@ th {
     font-size: 23px;
   }
 }
+
+/* Centered sign-in and unlock presentation */
+#gate {
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  isolation: isolate;
+}
+#gate > * {
+  position: relative;
+  z-index: 1;
+}
+#gate::before {
+  margin: 0 auto 18px;
+}
+#gate::after {
+  content: "◇";
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: 54%;
+  transform: translate(-50%, -50%);
+  color: #665be6;
+  opacity: .045;
+  font-size: clamp(310px, 38vw, 470px);
+  font-weight: 300;
+  line-height: 1;
+  pointer-events: none;
+}
+#gate .eyebrow,
+#gate > p {
+  text-align: center;
+}
+#login {
+  display: block;
+  width: min(100%, 460px);
+  margin: 0 auto;
+}
+#unlockForm {
+  width: min(100%, 460px);
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+}
+#unlockForm button {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+@media (max-width: 500px) {
+  #gate::after {
+    top: 50%;
+    font-size: 330px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
